@@ -1,0 +1,22 @@
+# Default configuration file for this package. If you have a CONFIG_DIR
+# env variable, and there is a file opendal_ingestion.yaml there, its used
+
+# Location of configuration files (from ingestion-configuration/data)
+config_dir: '/media/brouwer/data_volume/dataclopedia/repositories/ingestion-configuration/data'
+
+# Harvest settings
+max_timeout: 30
+datetime_format: '%Y-%m-%dT%H.%M.%S'
+write_per: 2000 # Queue size before flushing to disk
+delays: [10, 30, 120, 600] # Delays for consecutive retries (4 retries with backoff)
+
+# Harvester specific configuration
+ckan3:
+    max_amount_missing: 10
+
+# Data Structuring
+rep_textkey: _content # this will replace #text in xml data
+
+# Data Translation
+date_format: '%Y-%m-%d'
+now_add_days: 14 # Number of days added to date that is 'now'

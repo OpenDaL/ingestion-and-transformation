@@ -1,0 +1,50 @@
+- data_format: blacklight
+  structurer_kwargs:
+      base_url: "https://deepblue.lib.umich.edu/data/"
+      uid_key: "id_ssi"
+      url_suffix_key: "resource_type_ssim"
+      url_suffix_mapping:
+          Dataset: "concern/data_sets"
+          Collection: "collections"
+  cases:
+      # Below entries test the url_suffix_key and url_suffix_mapping behaviour
+      - input:
+          id_ssi: 'dummyid'
+          resource_type_ssim: Dataset
+        output:
+          _dplatform_externalReference:
+              type: 'synchronizedPortalPage'
+              URL: https://deepblue.lib.umich.edu/data/concern/data_sets/dummyid
+          _dplatform_uid: 'dummyid'
+      - input:
+          id_ssi: 'dummyid'
+          resource_type_ssim: Collection
+        output:
+          _dplatform_externalReference:
+              type: 'synchronizedPortalPage'
+              URL: https://deepblue.lib.umich.edu/data/collections/dummyid
+          _dplatform_uid: 'dummyid'
+- data_format: arcgis_open_data_v3
+  structurer_kwargs:
+      base_url: "https://hub.arcgis.com/datasets/"
+  cases:
+      # Test an entry that has a slug, and one without a slug
+      - input:
+          id: 'dummyid'
+          attributes:
+              slug: dataset-slug
+        output:
+          _dplatform_externalReference:
+              type: 'synchronizedPortalPage'
+              URL: https://hub.arcgis.com/datasets/dataset-slug
+          _dplatform_uid: 'dummyid'
+      - input:
+          id: 'dummyid'
+          attributes:  # attributes key is required
+              name: 'henkie'
+        output:
+          _dplatform_externalReference:
+              type: 'synchronizedPortalPage'
+              URL: https://hub.arcgis.com/datasets/dummyid
+          _dplatform_uid: 'dummyid'
+          name: 'henkie'
