@@ -701,9 +701,6 @@ elasticsearch_structurer = structurers.ElasticSearchStructurer('')
 def elasticsearch(data, base_url=''):
     """
     Structurer for data harvested from an ElasticSearch endpoint
-
-    Arguments:
-        data --- dict: The data of a single entry
     """
     elasticsearch_structurer.base_url = base_url
     return structure_using_structurer(data, elasticsearch_structurer)
@@ -718,6 +715,16 @@ def invenio(data, base_url=''):
     """
     invenio_structurer.base_url = base_url
     return structure_using_structurer(data, invenio_structurer)
+
+
+ncei_structurer = structurers.NCEIStructurer('')
+
+
+def ncei(data):
+    """
+    Structurer for NCEI data
+    """
+    return structure_using_structurer(data, ncei_structurer)
 
 
 def magda(data, url_format='{}', filter_publishers=None):
@@ -1038,6 +1045,7 @@ STRUCTURING_LOOKUP = {
     'Udata': udata,
     "Data.json": data_json,
     "DCAT XML": dcat_xml,
+    "NCEI": ncei,
     }
 
 

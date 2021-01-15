@@ -1421,3 +1421,20 @@ class InvenioStructurer(
             id_key='id',
             **kwargs
         )
+
+
+class NCEIStructurer(ElasticSearchStructurer):
+    """
+    Adds '/html' to the url
+    """
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(
+            *args,
+            base_url='https://www.ncei.noaa.gov/metadata/geoportal/rest/metadata/item/',
+            **kwargs
+        )
+
+    def _process(self, metadata: ResourceMetadata):
+        super()._process(metadata)
+        metadata.meta['url'] += '/html'

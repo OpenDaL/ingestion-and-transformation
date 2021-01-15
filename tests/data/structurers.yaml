@@ -4535,3 +4535,87 @@ InvenioStructurer:
       meta:
         url: https://zenodo.org/record/4247792
         localId: '4247792'
+NCEIStructurer:
+  - args: ['']
+    kwargs: {}
+    input:
+      _id: noaa-tree-9975
+      _index: metadata_v1
+      _score: null
+      _source:
+        description: This archived Paleoclimatology Study is available from the NOAA National
+          Centers for Environmental Information (NCEI), under the World Data Service (WDS)
+          for Paleoclimatology. The associated NCEI study type is Tree Ring. The data include
+          parameters of tree ring with a geographic location of Switzerland, Western Europe.
+          The time period coverage is from 237 to 115 in calendar years before present (BP).
+          See metadata information for parameter and study location details. Please cite
+          this study when using the data.
+        envelope_geo:
+        - coordinates:
+          - - 9
+            - 47.00000001
+          - - 9.00000001
+            - 47
+          type: envelope
+        fileid: noaa-tree-9975
+        keywords_s:
+        - Earth Science > Climate Indicators > Paleoclimate Indicators > Biological Records
+          > Tree Rings
+        - Earth Science > Paleoclimate > Land Records > Tree Rings
+        - earth science > paleoclimate > tree ring
+        - earth science > paleoclimate > tree ring
+        - earth science > paleoclimate > tree ring
+        - earth science > paleoclimate > tree ring
+        - earth science > paleoclimate > tree-ring > width
+        - PCAB
+        - Picea abies (L.) H. Karst.
+        - Norway spruce
+        - Continent > Europe > Western Europe > Switzerland> Chilton English Double Bass
+          > LATITUDE 47 > LONGITUDE 9
+        - geoscientificInformation
+        sys_created_dt: '2020-10-14T14:01:59.215Z'
+        sys_modified_dt: '2021-01-15T10:54:55.240Z'
+        title: NOAA/WDS Paleoclimatology - Ratcliff - Chilton English Double Bass - PCAB
+          - ITRDB SWIT194
+      _type: _doc
+      sort:
+      - noaa-tree-9975
+    output:
+      structured:
+        description: This archived Paleoclimatology Study is available from the NOAA National
+          Centers for Environmental Information (NCEI), under the World Data Service (WDS)
+          for Paleoclimatology. The associated NCEI study type is Tree Ring. The data include
+          parameters of tree ring with a geographic location of Switzerland, Western Europe.
+          The time period coverage is from 237 to 115 in calendar years before present (BP).
+          See metadata information for parameter and study location details. Please cite
+          this study when using the data.
+        envelope_geo:
+        - coordinates:
+          - - 9
+            - 47.00000001
+          - - 9.00000001
+            - 47
+          type: envelope
+        fileid: noaa-tree-9975
+        keywords_s:
+        - Earth Science > Climate Indicators > Paleoclimate Indicators > Biological Records
+          > Tree Rings
+        - Earth Science > Paleoclimate > Land Records > Tree Rings
+        - earth science > paleoclimate > tree ring
+        - earth science > paleoclimate > tree ring
+        - earth science > paleoclimate > tree ring
+        - earth science > paleoclimate > tree ring
+        - earth science > paleoclimate > tree-ring > width
+        - PCAB
+        - Picea abies (L.) H. Karst.
+        - Norway spruce
+        - Continent > Europe > Western Europe > Switzerland> Chilton English Double Bass
+          > LATITUDE 47 > LONGITUDE 9
+        - geoscientificInformation
+        sys_created_dt: '2020-10-14T14:01:59.215Z'
+        sys_modified_dt: '2021-01-15T10:54:55.240Z'
+        title: NOAA/WDS Paleoclimatology - Ratcliff - Chilton English Double Bass - PCAB
+          - ITRDB SWIT194
+      meta:
+        url: https://www.ncei.noaa.gov/metadata/geoportal/rest/metadata/item/noaa-tree-9975/html
+        localId: noaa-tree-9975
