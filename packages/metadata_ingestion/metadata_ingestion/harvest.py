@@ -100,6 +100,9 @@ class Harvester:
 
         allow_repeating_data=False --- bool: If True, the check for repeating
         data is disabled
+
+        additional_headers --- dict: Update the Session headers using this
+        dict
     """
 
     def __init__(self, id_=None, api_url='', output_path='',
@@ -107,7 +110,8 @@ class Harvester:
                  cache_size=1000, timeout=DEFAULT_TIMEOUT, max_size=50000000,
                  certfile=None, encoding=None, invalid_xml_regex=None,
                  rows=None, cloudflare_bypass=False, user_agent=None,
-                 is_single_request=False, allow_repeating_data=False):
+                 is_single_request=False, allow_repeating_data=False,
+                 additional_headers=None):
         """
         Create a new harvester
         """
@@ -130,6 +134,7 @@ class Harvester:
         self.user_agent = user_agent
         self.is_single_request = is_single_request
         self.allow_repeating_data = allow_repeating_data
+        self.additional_headers = additional_headers
         self.last_req_finish_time = 0
         # In case failure occurs, but scraping is continued, use
         # self.has_failed, to still make sure the .INCOMPLETE is added to the
@@ -168,6 +173,9 @@ class Harvester:
 
         if self.user_agent is not None:
             self.session._default_headers['User-Agent'] = self.user_agent
+
+        if self.additional_headers is not None:
+            self.session._default_headers.update(self.additional_headers)
 
     async def run(self):
         """
