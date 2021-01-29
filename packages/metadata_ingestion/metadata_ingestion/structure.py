@@ -77,14 +77,14 @@ def CKAN3(data, reference_baseURL='', filter_org_ids=None,
             'key': {'organization': 'id'},
             'values': set(filter_org_ids),
             'type': 'reject',
-            'all_should_match': False
+            'should_completely_match': False
         })
     if filter_group_names is not None:
         filter_options.append({
             'key': {'groups': 'name'},
             'values': set(filter_group_names),
             'type': 'reject',
-            'all_should_match': False
+            'should_completely_match': False
         })
 
     return structure_using_structurer(data, ckan3_structurer)
