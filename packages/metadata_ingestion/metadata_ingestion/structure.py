@@ -12,7 +12,6 @@ Every Flattening Function should:
 import re
 import logging
 import copy
-from urllib.parse import quote_plus
 
 from metadata_ingestion import _dataio, _aux, structurers
 from metadata_ingestion import settings as st
@@ -760,6 +759,9 @@ def magda(data, url_format='{}', filter_publishers=None):
     return structure_using_structurer(data, magda_structurer)
 
 
+rifcs_structurer = structurers.RIFCSStructurer('')
+
+
 def RIF_CS(data, base_url='', id_prefix=None):
     """
     Flatten parsed XML metadata descriptions that are retrieved in datacite
@@ -779,28 +781,12 @@ def RIF_CS(data, base_url='', id_prefix=None):
     Returns:
         dict --- The flattened & cleaned data
     """
-    if 'metadata' not in data:
-        return
+    if isinstance(id_prefix, str):
+        id_prefix = [id_prefix]
+    rifcs_structurer.id_prefix = id_prefix
+    rifcs_structurer.base_url = base_url
 
-    # Merge the OAI header and metadata section:
-    registry_object = data['metadata']['registryObjects']['registryObject']
-    for key in ['collection', 'service']:
-        if key in registry_object:
-            merged_entry = copy.deepcopy(registry_object[key])
-            break
-    else:
-        logger.warning("RIF_CS: Found entry without 'collection' or 'service'")
-        return
-
-    merged_entry.update(
-        {('header:' + k): v for k, v in data['header'].items()}
-        )
-
-    # Clean and structure the merged data:
-    cleaned_data = process_OAI_PMH_metadata(merged_entry, base_url,
-                                            id_prefix=id_prefix)
-
-    return cleaned_data
+    return structure_using_structurer(data, rifcs_structurer)
 
 
 def geonetwork(data, base_url='', id_prefix=None):

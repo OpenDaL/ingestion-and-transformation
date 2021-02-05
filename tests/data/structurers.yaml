@@ -4668,3 +4668,111 @@ MagdaStructurer:
       meta:
         url: https://data.gov.au/dataset/ds-bom-f1687_4921_9483_2394/details?q=
         localId: ds-bom-f1687_4921_9483_2394
+RIFCSStructurer:
+  - args: ['']
+    kwargs:
+      base_url: https://researchdata.ands.org.au/
+    input:
+      header:
+        datestamp: '2016-01-05T12:31:55Z'
+        identifier: oai:ands.org.au::60174
+        setSpec:
+        - class:collection
+        - datasource:1
+        - datasource:Breast-Cancer-Tissue-Bank
+        - group:164
+        - group:Breast-Cancer-Tissue-Bank
+        - group:Breast0x20Cancer0x20Tissue0x20Bank
+      metadata:
+        registryObjects:
+          registryObject:
+            '@group': Breast Cancer Tissue Bank
+            collection:
+              '@type': collection
+              description:
+              - '#text': This BCTB blood sample subcollection consists of serum samples.
+                  Serum is the fluid constituent of blood.
+                '@type': brief
+              - '#text': Limited information about items in the BCTB collections, and small
+                  images, are available publicly through the search tool on the Research
+                  Query web page.  Researchers who would like to seek direct access to samples
+                  and full-size images can find details of the procedure to follow at https://abctb.org.au/abctbNew2/researchers.aspx
+                  .
+                '@type': rights
+              identifier:
+                '#text': abctb.org.au 11
+                '@type': local
+              location:
+                address:
+                  electronic:
+                    '@type': url
+                    value: https://abctb.org.au/abctbNew2/researchspecimenquery.aspx
+              name:
+                '@type': primary
+                namePart: BCTB Blood Serum Samples
+              relatedObject:
+              - key: abctb.org.au 7
+                relation:
+                  '@type': isPartOf
+              - key: abctb.org.au 2
+                relation:
+                  '@type': supports
+              - key: abctb.org.au 1
+                relation:
+                  '@type': isManagedBy
+              subject:
+              - '#text': '9201'
+                '@type': anzsrc-for
+              - '#text': 9201102 Cancer and Related Disorders
+                '@type': anzsrc-for
+              - '#text': 9201507 Women's Health
+                '@type': anzsrc-for
+            key: abctb.org.au 11
+            originatingSource: http://abctb.org.au/
+    output:
+      structured:
+        description:
+        - _content: This BCTB blood sample subcollection consists of serum samples. Serum
+            is the fluid constituent of blood.
+          type: brief
+        - _content: Limited information about items in the BCTB collections, and small images,
+            are available publicly through the search tool on the Research Query web page.  Researchers
+            who would like to seek direct access to samples and full-size images can find
+            details of the procedure to follow at https://abctb.org.au/abctbNew2/researchers.aspx
+            .
+          type: rights
+        electronic:
+          type: url
+          value: https://abctb.org.au/abctbNew2/researchspecimenquery.aspx
+        header:datestamp: '2016-01-05T12:31:55Z'
+        header:setSpec:
+        - class:collection
+        - datasource:1
+        - datasource:Breast-Cancer-Tissue-Bank
+        - group:164
+        - group:Breast-Cancer-Tissue-Bank
+        - group:Breast0x20Cancer0x20Tissue0x20Bank
+        identifier:
+          _content: abctb.org.au 11
+          type: local
+        name:
+          namePart: BCTB Blood Serum Samples
+          type: primary
+        relatedObject:
+        - key: abctb.org.au 7
+          type: isPartOf
+        - key: abctb.org.au 2
+          type: supports
+        - key: abctb.org.au 1
+          type: isManagedBy
+        subject:
+        - _content: '9201'
+          type: anzsrc-for
+        - _content: 9201102 Cancer and Related Disorders
+          type: anzsrc-for
+        - _content: 9201507 Women's Health
+          type: anzsrc-for
+        type: collection
+      meta:
+        url: https://researchdata.ands.org.au/60174
+        localId: oai:ands.org.au::60174

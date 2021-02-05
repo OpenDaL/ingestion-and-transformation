@@ -729,8 +729,9 @@ class OAIPMHMixin(CleanXMLMixin, KeyIdMixin, KeyUrlMixin):
     Base Structurer to use other OAI-PMH structurers
 
     Adds Arguments:
-        metadata_loc -- Location where the base metadata data can be found (
-        see _aux.get_data_from_loc for format)
+        metadata_loc -- Optional; Location where the base metadata data can be
+        found (see _aux.get_data_from_loc for format). Optional if the
+        _fill_structured(() function is overridden.
 
         id_prefix -- Optional; The prefix(es) of the id that should be removed
         for creating the url, if base_url is used
@@ -741,7 +742,7 @@ class OAIPMHMixin(CleanXMLMixin, KeyIdMixin, KeyUrlMixin):
     """
 
     def __init__(
-            self, *args, metadata_loc: Union[str, dict],
+            self, *args, metadata_loc: Union[str, dict] = None,
             id_prefix: Union[list[str], str] = None, base_url: str = None,
             **kwargs
             ):
@@ -1487,4 +1488,41 @@ class MagdaStructurer(
             update_from_keys=[{'aspects': 'dcat-dataset-strings'}],
             id_key='id',
             **kwargs,
+        )
+
+
+class RIFCSStructurer(OAIPMHMixin, Structurer):
+    """
+    Structure RIF CS Data from OAI-PMH endpoints
+    """
+
+    def _fill_structured(self, metadata: ResourceMetadata):
+        """
+        Override the default 'fill structured' of the OAIPMHMixin
+        """
+        header = metadata.harvested.get('header')
+        md = metadata.harvested.get('metadata')
+        if header is None or md is None:
+            metadata.is_filtered = True
+            return
+
+        # Merge the OAI header and metadata section:
+        registry_object =\
+            metadata.harvested['metadata']['registryObjects']['registryObject']
+        for key in ['collection', 'service']:
+            if key in registry_object:
+                metadata.structured = registry_object[key]
+                break
+        else:
+            logger.warning(
+                "RIF_CS: Found entry without 'collection' or 'service'"
+            )
+            metadata.is_filtered = True
+            return
+
+        metadata.structured.update(
+            {
+                ('header:' + k): v for k, v
+                in metadata.harvested['header'].items()
+            }
         )
