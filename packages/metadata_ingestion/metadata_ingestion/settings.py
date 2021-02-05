@@ -18,10 +18,9 @@ def get_config_loc():
     Returns the location of the configuration file (either pacakge default or
     the one in $CONFIG_DIR. Returns a pathlib.Path
     """
-    config_loc = Path(Path(__file__).parent, 'default_config.yaml')
-
     # Check if there is a system level config
     config_dir = os.environ.get('CONFIG_DIR')
+    config_loc = None
     if config_dir is not None:
         config_path = Path(config_dir, 'opendal_ingestion.yaml')
         if config_path.is_file():
@@ -29,6 +28,8 @@ def get_config_loc():
             logger.info('Using local config file found at {}'.format(
                 config_path.as_posix())
             )
+    else:
+        raise ValueError('$CONFIG_DIR environment variable not set')
 
     return config_loc
 

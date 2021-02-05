@@ -4619,3 +4619,52 @@ NCEIStructurer:
       meta:
         url: https://www.ncei.noaa.gov/metadata/geoportal/rest/metadata/item/noaa-tree-9975/html
         localId: noaa-tree-9975
+MagdaStructurer:
+  - args: ['']
+    kwargs:
+      format_url: https://data.gov.au/dataset/{}/details?q=
+    input:
+      aspects:
+        dcat-dataset-strings:
+          accrualPeriodicity: ''
+          contactPoint: Tan Le, T.Le@bom.gov.au
+          description: Various plots of APS1 access-dn
+          issued: 14/09/2017
+          keywords:
+          - APS1
+          - access-dn
+          - plots
+          languages:
+          - eng
+          modified: 14/09/2017
+          publisher: ''
+          themes:
+          - environment
+          title: Plots of APS1 access-dn
+      authnReadPolicyId: object.registry.record.public
+      id: ds-bom-f1687_4921_9483_2394
+      name: f1687_4921_9483_2394
+      sourceTag: 9be5178c-1c7e-4676-8962-bb0d85179c60
+      tenantId: 0
+    output:
+      structured:
+        contactPoint: Tan Le, T.Le@bom.gov.au
+        description: Various plots of APS1 access-dn
+        issued: 14/09/2017
+        keywords:
+        - APS1
+        - access-dn
+        - plots
+        languages:
+        - eng
+        modified: 14/09/2017
+        themes:
+        - environment
+        title: Plots of APS1 access-dn
+        authnReadPolicyId: object.registry.record.public
+        name: f1687_4921_9483_2394
+        sourceTag: 9be5178c-1c7e-4676-8962-bb0d85179c60
+        tenantId: 0
+      meta:
+        url: https://data.gov.au/dataset/ds-bom-f1687_4921_9483_2394/details?q=
+        localId: ds-bom-f1687_4921_9483_2394

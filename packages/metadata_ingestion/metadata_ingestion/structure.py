@@ -727,6 +727,9 @@ def ncei(data):
     return structure_using_structurer(data, ncei_structurer)
 
 
+magda_structurer = structurers.MagdaStructurer('')
+
+
 def magda(data, url_format='{}', filter_publishers=None):
     """
     Structurer for data harvested from a Magda.io API endpoint
@@ -741,29 +744,20 @@ def magda(data, url_format='{}', filter_publishers=None):
         dataset-publisher aspect that has one of the id's in this list, is
         filtered
     """
-    structured_metadata = copy.deepcopy(data)
+    magda_structurer.format_url = url_format
+    if filter_publishers is not None:
+        magda_structurer.filter_key_value_options = [
+            {
+                'key': {'aspects': {'dataset-publisher': 'publisher'}},
+                'values': filter_publishers,
+                'type': 'reject',
+                'should_completely_match': False,
+            }
+        ]
+    else:
+        magda_structurer.filter_key_value_options = []
 
-    # Seperate metadata, and update root object with it
-    aspects = structured_metadata.pop('aspects')
-    structured_metadata.update(aspects['dcat-dataset-strings'])
-
-    # Check if the publisher needs to be filtered
-    if filter_publishers is not None and 'dataset-publisher' in aspects:
-        if aspects['dataset-publisher']['publisher'] in filter_publishers:
-            return None
-
-    # Set the default dataset properties
-    dataset_id = str(structured_metadata.pop('id'))
-    dataset_url = url_format.format(
-        quote_plus(dataset_id)
-    )
-    ext_reference = create_dplatform_externalReference(dataset_url)
-    structured_metadata.update(
-        {'_dplatform_externalReference': ext_reference,
-         '_dplatform_uid': dataset_id}
-        )
-
-    return structured_metadata
+    return structure_using_structurer(data, magda_structurer)
 
 
 def RIF_CS(data, base_url='', id_prefix=None):

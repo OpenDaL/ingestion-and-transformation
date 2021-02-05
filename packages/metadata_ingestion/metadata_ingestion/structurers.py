@@ -245,6 +245,40 @@ class BaseUrlMixin:
         super()._process(metadata)
 
 
+class FormatStringUrlMixin:
+    """
+    Mixin to construct the URL based on a format string that's filled with the
+    value of a specific key
+
+    Arguments:
+        format_url -- Optional; The URL format string with one empty position,
+        e.g. (https://domain.tld/{}/view)
+
+        format_url_key -- Optional; The key to use when filling the format
+        url string. If not provided, the id is used.
+    """
+    def __init__(
+            self, *args, format_url: str = None, format_url_key: str = None,
+            **kwargs
+            ):
+        self.format_url = format_url
+        self.format_url_key = format_url_key
+        super().__init__(*args, **kwargs)
+
+    def _process(self, metadata: ResourceMetadata):
+        if self.format_url is not None:
+            if self.format_url_key is not None:
+                url_part = _aux.get_data_from_loc(
+                    metadata.processed, self.format_url_key
+                )
+                if url_part is None:
+                    raise ValueError('Url Key missing from metadata.processed')
+            else:
+                url_part = metadata.meta['localId']
+
+            metadata.meta['url'] = self.format_url.format(quote_plus(url_part))
+
+
 class RemoveKeysMixin:
     """
     Structurer Mixin to remove specific keys from metadata.structured
@@ -1438,3 +1472,19 @@ class NCEIStructurer(ElasticSearchStructurer):
     def _process(self, metadata: ResourceMetadata):
         super()._process(metadata)
         metadata.meta['url'] += '/html'
+
+
+class MagdaStructurer(
+        UpdateFromKeyMixin, KeyValueFilterMixin, KeyIdMixin,
+        FormatStringUrlMixin, Structurer
+        ):
+    """
+    Structurer for Magda.io API data
+    """
+    def __init__(self, *args, **kwargs):
+        super().__init__(
+            *args,
+            update_from_keys=[{'aspects': 'dcat-dataset-strings'}],
+            id_key='id',
+            **kwargs,
+        )
