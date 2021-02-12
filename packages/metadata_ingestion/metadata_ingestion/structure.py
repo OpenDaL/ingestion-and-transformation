@@ -789,7 +789,10 @@ def RIF_CS(data, base_url='', id_prefix=None):
     return structure_using_structurer(data, rifcs_structurer)
 
 
-def geonetwork(data, base_url='', id_prefix=None):
+geonetwork_structurer = structurers.GeonetworkStructurer('')
+
+
+def geonetwork(data, base_url=''):
     """
     Structure data returned by the Geonetwork API (Not for geonetwork CSW data)
 
@@ -802,19 +805,9 @@ def geonetwork(data, base_url='', id_prefix=None):
     Returns:
         dict --- The flattened & cleaned data
     """
-    structured_metadata = copy.deepcopy(data)
-    geonetwork_meta = data.pop('geonet:info')
+    geonetwork_structurer.base_url = base_url
 
-    uuid = geonetwork_meta['uuid']
-
-    dataset_url = base_url.strip('/') + '/' + uuid
-    ext_reference = create_dplatform_externalReference(dataset_url)
-    structured_metadata.update(
-        {'_dplatform_externalReference': ext_reference,
-         '_dplatform_uid': uuid}
-        )
-
-    return structured_metadata
+    return structure_using_structurer(data, geonetwork_structurer)
 
 
 def EUDP(data, base_url='', filter_catalog_ids=None):

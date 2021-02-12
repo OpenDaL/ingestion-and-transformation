@@ -4776,3 +4776,206 @@ RIFCSStructurer:
       meta:
         url: https://researchdata.ands.org.au/60174
         localId: oai:ands.org.au::60174
+GeonetworkStructurer:
+  - args: ['']
+    kwargs:
+      base_url: https://hecate.hakai.org/geonetwork/srv/eng/catalog.search#/metadata/
+    input:
+      _locale: eng
+      abstract: "This data package consists of 5 years of quality controlled precipitation\
+        \ data collected at 18 metrological stations on Calvert and Hecate Islands, 1 on\
+        \ the Koeye River, 1 on Ethel Island in Rivers Inlet, and 1 on Quadra Island on\
+        \ British Columbia’s coast. Methods for data quality control and assurance are outlined\
+        \ in the companion README document. \n\nData is collected as part of the Hakai climate\
+        \ and hydrometric observation network which is an ongoing monitoring network that\
+        \ collects near-real time data providing many operational uses for the general public\
+        \ and for marine and air traffic."
+      creationDate: '2020-08-05'
+      credit: Haughton, E.R., Floyd, W.C., Brunsting, R., Hateley, S. (2020). Precipitation
+        2013 through 2019 on the Central Coast and Quadra Island, British Columbia, Canada.
+        Version 1.0. Hakai Institute. Dataset. [access date] https://doi.org/10.21966/xnh1-tp28
+      datasetLang: eng
+      defaultAbstract: "This data package consists of 5 years of quality controlled precipitation\
+        \ data collected at 18 metrological stations on Calvert and Hecate Islands, 1 on\
+        \ the Koeye River, 1 on Ethel Island in Rivers Inlet, and 1 on Quadra Island on\
+        \ British Columbia’s coast. Methods for data quality control and assurance are outlined\
+        \ in the companion README document. \n\nData is collected as part of the Hakai climate\
+        \ and hydrometric observation network which is an ongoing monitoring network that\
+        \ collects near-real time data providing many operational uses for the general public\
+        \ and for marine and air traffic."
+      defaultTitle: Precipitation time-series – Central Coast and Quadra Island – 2013 -
+        2019 Version 1.0
+      displayOrder: '0'
+      docLocale: eng
+      format: CSV
+      geoBox: -128.35114344|51.37506462|-127.65170145|51.8069493
+      geoDesc: Watersheds on Calvert and Hecate Islands, Koeye River, Rivers Inlet, and
+        Quadra Island - British Columbia - Canada
+      geonet:info:
+        '@xmlns:geonet': http://www.fao.org/geonetwork
+        changeDate: '2021-01-06T00:03:26'
+        createDate: '2020-09-08T22:24:00'
+        download: 'true'
+        dynamic: 'true'
+        featured: 'false'
+        id: '715945'
+        isPublishedToAll: 'true'
+        notify: 'false'
+        schema: iso19139
+        selected: 'false'
+        source: 6cc5b72f-ee78-4db5-9ffa-b66a797828a6
+        uuid: ef59cc12-5031-4c65-b379-7ca03ad76d34
+        view: 'true'
+      groupOwner: '5802'
+      image: thumbnail|https://hecate.hakai.org/geonetwork/srv/api/records/ef59cc12-5031-4c65-b379-7ca03ad76d34/attachments/tippingbucket.jpg|
+      isHarvested: n
+      isTemplate: n
+      keyword:
+      - Downloadable Data
+      - precipitation
+      - rainfall
+      - climate
+      - weather
+      - calvert island
+      - Environment
+      - Climatology, meteorology, atmosphere
+      keywordGroup:
+        keywords:
+        - precipitation
+        - rainfall
+        - climate
+        - weather
+        - calvert island
+      link: Hakai's Google Drive|Hakai's AGOL Instance is the platform for Access and online
+        use of this dataset/'s reference layer **EDIT ACCORDINGLY**|https://drive.google.com/drive/folders/1AQYiA_-gD82irr-SbHrl6W9z8DL_Ep1Z?usp=sharing|WWW:LINK-1.0-http--link|text/html|1
+      logo: /images/logos/6cc5b72f-ee78-4db5-9ffa-b66a797828a6.png
+      mdLanguage: eng
+      owner: '715942'
+      popularity: '16'
+      publicationDate: '2020-08-05'
+      publishedForGroup:
+      - '5802'
+      - '1'
+      rating: '0'
+      resourceConstraints: Appropriate credit must be given to Hakai Institute and the authors
+        of the dataset.
+      responsibleParty:
+      - Point of contact|resource|Hakai Institute||bill.floyd@viu.ca|Bill Floyd|||||1
+      - Custodian|metadata|Hakai Institute|||Emily Haughton|||||1
+      source: 6cc5b72f-ee78-4db5-9ffa-b66a797828a6
+      spatialRepresentationType_text: Text, table
+      standardName: ISO 19139 Geographic Information - Metadata - Implementation Specification
+      status: onGoing
+      status_text: On going
+      title: Precipitation time-series – Central Coast and Quadra Island – 2013 - 2019 Version
+        1.0
+      topicCat:
+      - environment
+      - climatologyMeteorologyAtmosphere
+      type: dataset
+      userinfo: Emily Haughton|Haughton|Emily|Reviewer
+      valid: '1'
+      valid_schematron-rules-geonetwork: '1'
+      valid_schematron-rules-iso: '1'
+      valid_xsd: '1'
+    output:
+      structured:
+        _locale: eng
+        abstract: "This data package consists of 5 years of quality controlled precipitation\
+          \ data collected at 18 metrological stations on Calvert and Hecate Islands, 1 on\
+          \ the Koeye River, 1 on Ethel Island in Rivers Inlet, and 1 on Quadra Island on\
+          \ British Columbia’s coast. Methods for data quality control and assurance are outlined\
+          \ in the companion README document. \n\nData is collected as part of the Hakai climate\
+          \ and hydrometric observation network which is an ongoing monitoring network that\
+          \ collects near-real time data providing many operational uses for the general public\
+          \ and for marine and air traffic."
+        creationDate: '2020-08-05'
+        credit: Haughton, E.R., Floyd, W.C., Brunsting, R., Hateley, S. (2020). Precipitation
+          2013 through 2019 on the Central Coast and Quadra Island, British Columbia, Canada.
+          Version 1.0. Hakai Institute. Dataset. [access date] https://doi.org/10.21966/xnh1-tp28
+        datasetLang: eng
+        defaultAbstract: "This data package consists of 5 years of quality controlled precipitation\
+          \ data collected at 18 metrological stations on Calvert and Hecate Islands, 1 on\
+          \ the Koeye River, 1 on Ethel Island in Rivers Inlet, and 1 on Quadra Island on\
+          \ British Columbia’s coast. Methods for data quality control and assurance are outlined\
+          \ in the companion README document. \n\nData is collected as part of the Hakai climate\
+          \ and hydrometric observation network which is an ongoing monitoring network that\
+          \ collects near-real time data providing many operational uses for the general public\
+          \ and for marine and air traffic."
+        defaultTitle: Precipitation time-series – Central Coast and Quadra Island – 2013 -
+          2019 Version 1.0
+        displayOrder: '0'
+        docLocale: eng
+        format: CSV
+        geoBox: -128.35114344|51.37506462|-127.65170145|51.8069493
+        geoDesc: Watersheds on Calvert and Hecate Islands, Koeye River, Rivers Inlet, and
+          Quadra Island - British Columbia - Canada
+        geonet:info:
+          '@xmlns:geonet': http://www.fao.org/geonetwork
+          changeDate: '2021-01-06T00:03:26'
+          createDate: '2020-09-08T22:24:00'
+          download: 'true'
+          dynamic: 'true'
+          featured: 'false'
+          id: '715945'
+          isPublishedToAll: 'true'
+          notify: 'false'
+          schema: iso19139
+          selected: 'false'
+          source: 6cc5b72f-ee78-4db5-9ffa-b66a797828a6
+          view: 'true'
+        groupOwner: '5802'
+        image: thumbnail|https://hecate.hakai.org/geonetwork/srv/api/records/ef59cc12-5031-4c65-b379-7ca03ad76d34/attachments/tippingbucket.jpg|
+        isHarvested: n
+        isTemplate: n
+        keyword:
+        - Downloadable Data
+        - precipitation
+        - rainfall
+        - climate
+        - weather
+        - calvert island
+        - Environment
+        - Climatology, meteorology, atmosphere
+        keywordGroup:
+          keywords:
+          - precipitation
+          - rainfall
+          - climate
+          - weather
+          - calvert island
+        link: Hakai's Google Drive|Hakai's AGOL Instance is the platform for Access and online
+          use of this dataset/'s reference layer **EDIT ACCORDINGLY**|https://drive.google.com/drive/folders/1AQYiA_-gD82irr-SbHrl6W9z8DL_Ep1Z?usp=sharing|WWW:LINK-1.0-http--link|text/html|1
+        logo: /images/logos/6cc5b72f-ee78-4db5-9ffa-b66a797828a6.png
+        mdLanguage: eng
+        owner: '715942'
+        popularity: '16'
+        publicationDate: '2020-08-05'
+        publishedForGroup:
+        - '5802'
+        - '1'
+        rating: '0'
+        resourceConstraints: Appropriate credit must be given to Hakai Institute and the authors
+          of the dataset.
+        responsibleParty:
+        - Point of contact|resource|Hakai Institute||bill.floyd@viu.ca|Bill Floyd|||||1
+        - Custodian|metadata|Hakai Institute|||Emily Haughton|||||1
+        source: 6cc5b72f-ee78-4db5-9ffa-b66a797828a6
+        spatialRepresentationType_text: Text, table
+        standardName: ISO 19139 Geographic Information - Metadata - Implementation Specification
+        status: onGoing
+        status_text: On going
+        title: Precipitation time-series – Central Coast and Quadra Island – 2013 - 2019 Version
+          1.0
+        topicCat:
+        - environment
+        - climatologyMeteorologyAtmosphere
+        type: dataset
+        userinfo: Emily Haughton|Haughton|Emily|Reviewer
+        valid: '1'
+        valid_schematron-rules-geonetwork: '1'
+        valid_schematron-rules-iso: '1'
+        valid_xsd: '1'
+      meta:
+        url: https://hecate.hakai.org/geonetwork/srv/eng/catalog.search#/metadata/ef59cc12-5031-4c65-b379-7ca03ad76d34
+        localId: ef59cc12-5031-4c65-b379-7ca03ad76d34

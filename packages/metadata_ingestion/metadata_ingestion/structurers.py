@@ -92,15 +92,16 @@ class KeyIdMixin:
     Structurer Mixin to derive ID from a specific key
 
     Adds Arguments:
-        id_key -- Key where the id is stored
+        id_key -- Key where the id is stored (See loc parameter of
+        _aux.get_data_from_loc() for the different options)
 
         id_from_harvested -- Optional; If True, the id is retrieved from
         metadata.harvested rather than metadata.structured
     """
 
     def __init__(
-            self, *args, id_key: str, id_from_harvested: bool = False,
-            **kwargs
+            self, *args, id_key: Union[dict, str],
+            id_from_harvested: bool = False, **kwargs
             ):
         self.id_key = id_key
         self.id_from_harvested = id_from_harvested
@@ -112,7 +113,7 @@ class KeyIdMixin:
         else:
             basedata = metadata.structured
 
-        local_id = str(basedata.pop(self.id_key))
+        local_id = str(_aux.get_data_from_loc(basedata, self.id_key, pop=True))
         metadata.meta['localId'] = local_id
         metadata.meta['globalId'] = self.get_global_id(local_id)
         super()._process(metadata)
@@ -1525,4 +1526,16 @@ class RIFCSStructurer(OAIPMHMixin, Structurer):
                 ('header:' + k): v for k, v
                 in metadata.harvested['header'].items()
             }
+        )
+
+
+class GeonetworkStructurer(KeyIdMixin, BaseUrlMixin, Structurer):
+    """
+    Structerer for Geonetwork Data
+    """
+    def __init__(self, *args, **kwargs):
+        super().__init__(
+            *args,
+            id_key={'geonet:info': 'uuid'},
+            **kwargs
         )
