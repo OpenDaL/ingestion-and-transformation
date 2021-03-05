@@ -745,7 +745,7 @@ def magda(data, url_format='{}', filter_publishers=None):
     """
     magda_structurer.format_url = url_format
     if filter_publishers is not None:
-        magda_structurer.filter_key_value_options = [
+        magda_structurer.key_value_filter_options = [
             {
                 'key': {'aspects': {'dataset-publisher': 'publisher'}},
                 'values': filter_publishers,
@@ -754,7 +754,7 @@ def magda(data, url_format='{}', filter_publishers=None):
             }
         ]
     else:
-        magda_structurer.filter_key_value_options = []
+        magda_structurer.key_value_filter_options = []
 
     return structure_using_structurer(data, magda_structurer)
 
@@ -810,6 +810,9 @@ def geonetwork(data, base_url=''):
     return structure_using_structurer(data, geonetwork_structurer)
 
 
+eudp_structurer = structurers.EUDPStructurer('')
+
+
 def EUDP(data, base_url='', filter_catalog_ids=None):
     """
     Structure data harvested from the European Data Portal
@@ -825,42 +828,21 @@ def EUDP(data, base_url='', filter_catalog_ids=None):
     Returns:
         dict --- The structured data of a single entry
     """
-    structured_metadata = copy.deepcopy(data)
+    eudp_structurer.base_url = base_url
 
-    # Check if catalog id should be filtered
     if filter_catalog_ids is not None:
-        if structured_metadata['catalog']['id'] in filter_catalog_ids:
-            return
+        eudp_structurer.key_value_filter_options = [
+            {
+                'key': {'catalog': 'id'},
+                'values': filter_catalog_ids,
+                'type': 'reject',
+                'should_completely_match': False,
+            }
+        ]
+    else:
+        eudp_structurer.key_value_filter_options = []
 
-    dataset_id = structured_metadata.pop('id')
-
-    dataset_url = base_url.strip('/') + '/' + dataset_id
-    ext_reference = create_dplatform_externalReference(dataset_url)
-    structured_metadata.update(
-        {'_dplatform_externalReference': ext_reference,
-         '_dplatform_uid': dataset_id}
-        )
-
-    # Extract data formats
-    if 'format' not in structured_metadata:
-        formats = []
-        distributions = structured_metadata.pop('distributions', None)
-        if distributions is not None:
-            for dist in distributions:
-                dformat = dist.get('format')
-                if isinstance(dformat, dict) and 'id' in dformat:
-                    formats.append(dformat['id'])
-
-        formats = list(set(formats))
-        if len(formats) > 0:
-            structured_metadata['format'] = formats
-
-    # If it doesn't have a type, add type dataset
-    # (Earlier harvesting enpoint assigned dataset to all entries)
-    if 'type' not in structured_metadata:
-        structured_metadata['type'] = 'Dataset'
-
-    return structured_metadata
+    return structure_using_structurer(data, eudp_structurer)
 
 
 _junar_structurer = structurers.JunarStructurer('')

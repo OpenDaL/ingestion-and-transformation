@@ -44,6 +44,11 @@ def get_data_from_loc(
         pop -- Whether to use pop or get on the final level
 
         default -- Default value to return, if the result was not found
+
+        accept_subvalue -- If the complete chain defined under 'loc' is not
+        present in the data, this decides if a sub-value should be returned.
+        e.g. if loc={'parentkey': 'childkey'}, but data={'parentkey': 4}, the
+        value for parentkey would be returned
     """
     if isinstance(loc, str):
         if isinstance(data, dict):
@@ -165,7 +170,7 @@ def remove_empty_keys(in_dict):
                 and v != '{}'
                 and v != []
                 and v != {}
-                and v is not None}  # Because 0 and False should not be excluded
+                and v is not None}  # 0 and False should not be excluded
 
     return out_dict
 

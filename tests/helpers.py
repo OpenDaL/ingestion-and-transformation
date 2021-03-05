@@ -48,7 +48,7 @@ def compare_output(
             assert key in actual
             actual_value = actual[key]
         else:
-            assert key not in actual
+            assert key not in actual, "Key {} not in actual".format(key)
             continue
 
         assert type(reference_value) == type(actual_value)

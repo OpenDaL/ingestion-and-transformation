@@ -4979,3 +4979,532 @@ GeonetworkStructurer:
       meta:
         url: https://hecate.hakai.org/geonetwork/srv/eng/catalog.search#/metadata/ef59cc12-5031-4c65-b379-7ca03ad76d34
         localId: ef59cc12-5031-4c65-b379-7ca03ad76d34
+EUDPStructurer:
+  - args: ['']
+    kwargs:
+      base_url: https://www.europeandataportal.eu/data/datasets/
+    input:
+      access_right: null
+      accrual_periodicity: null
+      catalog:
+        country:
+          id: be
+          title: Belgium
+        description:
+          en: Belgian open data portal, harvesting data from federal, regional and local
+            portals in Belgium
+        homepage: null
+        id: data-gov-be
+        issued: '2020-12-21T15:40:49.187718Z'
+        language:
+        - fr
+        license: null
+        modified: '2019-04-25T15:02:54Z'
+        publisher:
+          email: mailto:opendata@belgium.be
+          homepage: http://data.gov.be/en
+          name: Fedict
+          type: Agent
+        spatial: null
+        spatial_resource: null
+        title:
+          fr: data.gov.be
+      categories:
+      - id: TRAN
+        resource: http://publications.europa.eu/resource/authority/data-theme/TRAN
+        title:
+          bg: Транспорт
+          cs: Doprava
+          da: Transport
+          de: Verkehr
+          el: Μεταφορές
+          en: Transport
+          es: Transporte
+          et: Transport
+          fi: Liikenne
+          fr: Transports
+          ga: Iompar
+          hr: Promet
+          hu: Közlekedés
+          it: Trasporti
+          lt: Transportas
+          lv: Transports
+          mt: Trasport
+          nl: Vervoer
+          'no': Transport
+          pl: Transport
+          pt: Transportes
+          ro: Transport
+          sk: Doprava
+          sl: Transport
+          sv: Transport
+      conforms_to: null
+      contact_point:
+      - email: mailto:statbel@economie.fgov.be
+        name: Statbel
+        type: Kind
+      country:
+        id: be
+        title: Belgium
+      creator: null
+      deadline: null
+      description:
+        en: 'Description: Number of fatalities, serious casualties and light casualties
+          in road accidents, by age group, type of road user, sex and several other accident
+          characteristics.
+
+          Period: 2018
+
+          Metadata: Variables
+
+          More information, data and publications on this topic on Statbel
+
+          '
+        fr: 'Description : Nombre de tués, blessés graves, blessés légers et victimes indemnes
+          d’accidents de la route, par classe d’âges, genre d’usager, sexe et diverses caractéristiques
+          de l’accident
+
+          Période : 2018
+
+          Métadonnées : Variables. accidents de la circulation sur la voie publique avec
+          morts ou blessés
+
+          Vous trouverez plus d’informations, de données et de publications à ce sujet sur
+          Statbel
+
+          '
+        nl: 'Beschrijving: Aantal dode, zwaargewonde en lichtgewonde slachtoffers van verkeersongevallen,
+          per leeftijdsklasse, type weggebruiker, geslacht en diverse karakteristieken van
+          het ongeval
+
+          Periode: 2018
+
+          Metadata: Variables. Verkeersongevallen op de openbare weg met doden of gewonden
+
+          Meer informatie, data en publicaties over dit onderwerp op Statbel
+
+          '
+      distributions:
+      - access_url: https://statbel.fgov.be/fr/open-data/victimes-daccidents-de-la-route-2018
+        download_url:
+        - https://statbel.fgov.be/sites/default/files/files/opendata/Verkeersslachtoffers/TF_ACCIDENTS_VICTIMS_2018.xlsx
+        format:
+          id: XLSX
+          title: Excel XLSX
+        id: 3d983ce9-24b8-41ff-abd7-28d47f3121fd
+        language:
+        - fr
+        license:
+          id: https://statbel.fgov.be/sites/default/files/files/opendata/Licence%20open%20data_FR.pdf
+          resource: https://statbel.fgov.be/sites/default/files/files/opendata/Licence%20open%20data_FR.pdf
+          title: https://statbel.fgov.be/sites/default/files/files/opendata/Licence%20open%20data_FR.pdf
+        media_type: ''
+        rights: []
+        title:
+          fr: XLSX
+      - access_url: https://statbel.fgov.be/en/open-data/road-casualties-2018
+        download_url:
+        - https://statbel.fgov.be/sites/default/files/files/opendata/Verkeersslachtoffers/TF_ACCIDENTS_VICTIMS_2018.xlsx
+        format:
+          id: XLSX
+          title: Excel XLSX
+        id: ed42febd-97c6-42f4-82c1-0905b3fbceb3
+        language:
+        - en
+        license:
+          id: https://statbel.fgov.be/sites/default/files/files/opendata/Licence%20open%20data_FR.pdf
+          resource: https://statbel.fgov.be/sites/default/files/files/opendata/Licence%20open%20data_FR.pdf
+          title: https://statbel.fgov.be/sites/default/files/files/opendata/Licence%20open%20data_FR.pdf
+        media_type: ''
+        rights: []
+        title:
+          en: XLSX
+      - access_url: https://statbel.fgov.be/en/open-data/road-casualties-2018
+        download_url:
+        - https://statbel.fgov.be/sites/default/files/files/opendata/Verkeersslachtoffers/TF_ACCIDENTS_VICTIMS_2018.zip
+        format:
+          id: CSV
+          title: CSV
+        id: c6fd1074-2c85-4704-b01e-af34a7c574ca
+        language:
+        - en
+        license:
+          id: https://statbel.fgov.be/sites/default/files/files/opendata/Licence%20open%20data_FR.pdf
+          resource: https://statbel.fgov.be/sites/default/files/files/opendata/Licence%20open%20data_FR.pdf
+          title: https://statbel.fgov.be/sites/default/files/files/opendata/Licence%20open%20data_FR.pdf
+        media_type: ''
+        rights: []
+        title:
+          en: TXT (ZIP)
+      - access_url: https://statbel.fgov.be/nl/open-data/verkeersslachtoffers-2018
+        download_url:
+        - https://statbel.fgov.be/sites/default/files/files/opendata/Verkeersslachtoffers/TF_ACCIDENTS_VICTIMS_2018.xlsx
+        format:
+          id: XLSX
+          title: Excel XLSX
+        id: 2b1e8e76-19e3-42fb-a348-41360e7244c9
+        language:
+        - nl
+        license:
+          id: https://statbel.fgov.be/sites/default/files/files/opendata/Licence%20open%20data_NL.pdf
+          resource: https://statbel.fgov.be/sites/default/files/files/opendata/Licence%20open%20data_NL.pdf
+          title: https://statbel.fgov.be/sites/default/files/files/opendata/Licence%20open%20data_NL.pdf
+        media_type: ''
+        rights: []
+        title:
+          nl: XLSX
+      - access_url: https://statbel.fgov.be/nl/open-data/verkeersslachtoffers-2018
+        download_url:
+        - https://statbel.fgov.be/sites/default/files/files/opendata/Verkeersslachtoffers/TF_ACCIDENTS_VICTIMS_2018.zip
+        format:
+          id: CSV
+          title: CSV
+        id: 212c04a1-3781-4e41-b424-08f4cb230ae5
+        language:
+        - nl
+        license:
+          id: https://statbel.fgov.be/sites/default/files/files/opendata/Licence%20open%20data_NL.pdf
+          resource: https://statbel.fgov.be/sites/default/files/files/opendata/Licence%20open%20data_NL.pdf
+          title: https://statbel.fgov.be/sites/default/files/files/opendata/Licence%20open%20data_NL.pdf
+        media_type: ''
+        rights: []
+        title:
+          nl: TXT (ZIP)
+      - access_url: https://statbel.fgov.be/fr/open-data/victimes-daccidents-de-la-route-2018
+        download_url:
+        - https://statbel.fgov.be/sites/default/files/files/opendata/Verkeersslachtoffers/TF_ACCIDENTS_VICTIMS_2018.zip
+        format:
+          id: CSV
+          title: CSV
+        id: 6ce2927d-bced-4878-8557-13b33455d1fc
+        language:
+        - fr
+        license:
+          id: https://statbel.fgov.be/sites/default/files/files/opendata/Licence%20open%20data_FR.pdf
+          resource: https://statbel.fgov.be/sites/default/files/files/opendata/Licence%20open%20data_FR.pdf
+          title: https://statbel.fgov.be/sites/default/files/files/opendata/Licence%20open%20data_FR.pdf
+        media_type: ''
+        rights: []
+        title:
+          fr: TXT (ZIP)
+      frequency: null
+      geocoding_description: null
+      has_version: null
+      id: 9acb7fdd9be099b2a75c35af0cb2be2745795051
+      identifier:
+      - 9acb7fdd9be099b2a75c35af0cb2be2745795051
+      is_version_of: null
+      keywords:
+      - id: road-accidents
+        title: road accidents
+      - id: mobilite-
+        title: mobilité
+      - id: verkeer
+        title: verkeer
+      - id: accidents-et-victimes-de-la-circulation
+        title: accidents et victimes de la circulation
+      - id: mobiliteit
+        title: mobiliteit
+      - id: verkeersongevallen-en-slachtoffers
+        title: verkeersongevallen en -slachtoffers
+      - id: circulation
+        title: circulation
+      - id: circulation
+        title: circulation
+      - id: mobility
+        title: mobility
+      landing_page: null
+      language:
+      - en
+      - nl
+      - fr
+      legal_base: null
+      modification_date: null
+      other_identifiers: null
+      page: null
+      provenance: null
+      publisher:
+        homepage: http://statbel.fgov.be/
+        name: Statbel
+        resource: http://org.belgif.be/id/cbe/site/2_146_814_391
+        type: Organization
+      quality_meas: null
+      related_resources: null
+      release_date: null
+      source: null
+      spatial: []
+      spatial_resource: null
+      temporal: []
+      title:
+        en: Road casualties 2018
+        fr: Victimes d’accidents de la route 2018
+        nl: Verkeersslachtoffers 2018
+      translation_meta:
+        details:
+          en:
+            machine_translated: false
+          fr:
+            machine_translated: false
+          nl:
+            machine_translated: false
+        full_available_languages:
+        - en
+        - nl
+        - fr
+        status: unknown
+      type: null
+      version_info: null
+      version_notes: null
+    output:
+      structured:
+        catalog:
+          country:
+            id: be
+            title: Belgium
+          description:
+            en: Belgian open data portal, harvesting data from federal, regional and local
+              portals in Belgium
+          homepage: null
+          id: data-gov-be
+          issued: '2020-12-21T15:40:49.187718Z'
+          language:
+          - fr
+          license: null
+          modified: '2019-04-25T15:02:54Z'
+          publisher:
+            email: mailto:opendata@belgium.be
+            homepage: http://data.gov.be/en
+            name: Fedict
+            type: Agent
+          spatial: null
+          spatial_resource: null
+          title:
+            fr: data.gov.be
+        categories:
+        - id: TRAN
+          resource: http://publications.europa.eu/resource/authority/data-theme/TRAN
+          title:
+            bg: Транспорт
+            cs: Doprava
+            da: Transport
+            de: Verkehr
+            el: Μεταφορές
+            en: Transport
+            es: Transporte
+            et: Transport
+            fi: Liikenne
+            fr: Transports
+            ga: Iompar
+            hr: Promet
+            hu: Közlekedés
+            it: Trasporti
+            lt: Transportas
+            lv: Transports
+            mt: Trasport
+            nl: Vervoer
+            'no': Transport
+            pl: Transport
+            pt: Transportes
+            ro: Transport
+            sk: Doprava
+            sl: Transport
+            sv: Transport
+        contact_point:
+        - email: mailto:statbel@economie.fgov.be
+          name: Statbel
+          type: Kind
+        country:
+          id: be
+          title: Belgium
+        description:
+          en: 'Description: Number of fatalities, serious casualties and light casualties
+            in road accidents, by age group, type of road user, sex and several other accident
+            characteristics.
+
+            Period: 2018
+
+            Metadata: Variables
+
+            More information, data and publications on this topic on Statbel
+
+            '
+          fr: 'Description : Nombre de tués, blessés graves, blessés légers et victimes indemnes
+            d’accidents de la route, par classe d’âges, genre d’usager, sexe et diverses caractéristiques
+            de l’accident
+
+            Période : 2018
+
+            Métadonnées : Variables. accidents de la circulation sur la voie publique avec
+            morts ou blessés
+
+            Vous trouverez plus d’informations, de données et de publications à ce sujet sur
+            Statbel
+
+            '
+          nl: 'Beschrijving: Aantal dode, zwaargewonde en lichtgewonde slachtoffers van verkeersongevallen,
+            per leeftijdsklasse, type weggebruiker, geslacht en diverse karakteristieken van
+            het ongeval
+
+            Periode: 2018
+
+            Metadata: Variables. Verkeersongevallen op de openbare weg met doden of gewonden
+
+            Meer informatie, data en publicaties over dit onderwerp op Statbel
+
+            '
+        distributions:
+        - access_url: https://statbel.fgov.be/fr/open-data/victimes-daccidents-de-la-route-2018
+          download_url:
+          - https://statbel.fgov.be/sites/default/files/files/opendata/Verkeersslachtoffers/TF_ACCIDENTS_VICTIMS_2018.xlsx
+          format:
+            id: XLSX
+            title: Excel XLSX
+          id: 3d983ce9-24b8-41ff-abd7-28d47f3121fd
+          language:
+          - fr
+          license:
+            id: https://statbel.fgov.be/sites/default/files/files/opendata/Licence%20open%20data_FR.pdf
+            resource: https://statbel.fgov.be/sites/default/files/files/opendata/Licence%20open%20data_FR.pdf
+            title: https://statbel.fgov.be/sites/default/files/files/opendata/Licence%20open%20data_FR.pdf
+          media_type: ''
+          rights: []
+          title:
+            fr: XLSX
+        - access_url: https://statbel.fgov.be/en/open-data/road-casualties-2018
+          download_url:
+          - https://statbel.fgov.be/sites/default/files/files/opendata/Verkeersslachtoffers/TF_ACCIDENTS_VICTIMS_2018.xlsx
+          format:
+            id: XLSX
+            title: Excel XLSX
+          id: ed42febd-97c6-42f4-82c1-0905b3fbceb3
+          language:
+          - en
+          license:
+            id: https://statbel.fgov.be/sites/default/files/files/opendata/Licence%20open%20data_FR.pdf
+            resource: https://statbel.fgov.be/sites/default/files/files/opendata/Licence%20open%20data_FR.pdf
+            title: https://statbel.fgov.be/sites/default/files/files/opendata/Licence%20open%20data_FR.pdf
+          media_type: ''
+          rights: []
+          title:
+            en: XLSX
+        - access_url: https://statbel.fgov.be/en/open-data/road-casualties-2018
+          download_url:
+          - https://statbel.fgov.be/sites/default/files/files/opendata/Verkeersslachtoffers/TF_ACCIDENTS_VICTIMS_2018.zip
+          format:
+            id: CSV
+            title: CSV
+          id: c6fd1074-2c85-4704-b01e-af34a7c574ca
+          language:
+          - en
+          license:
+            id: https://statbel.fgov.be/sites/default/files/files/opendata/Licence%20open%20data_FR.pdf
+            resource: https://statbel.fgov.be/sites/default/files/files/opendata/Licence%20open%20data_FR.pdf
+            title: https://statbel.fgov.be/sites/default/files/files/opendata/Licence%20open%20data_FR.pdf
+          media_type: ''
+          rights: []
+          title:
+            en: TXT (ZIP)
+        - access_url: https://statbel.fgov.be/nl/open-data/verkeersslachtoffers-2018
+          download_url:
+          - https://statbel.fgov.be/sites/default/files/files/opendata/Verkeersslachtoffers/TF_ACCIDENTS_VICTIMS_2018.xlsx
+          format:
+            id: XLSX
+            title: Excel XLSX
+          id: 2b1e8e76-19e3-42fb-a348-41360e7244c9
+          language:
+          - nl
+          license:
+            id: https://statbel.fgov.be/sites/default/files/files/opendata/Licence%20open%20data_NL.pdf
+            resource: https://statbel.fgov.be/sites/default/files/files/opendata/Licence%20open%20data_NL.pdf
+            title: https://statbel.fgov.be/sites/default/files/files/opendata/Licence%20open%20data_NL.pdf
+          media_type: ''
+          rights: []
+          title:
+            nl: XLSX
+        - access_url: https://statbel.fgov.be/nl/open-data/verkeersslachtoffers-2018
+          download_url:
+          - https://statbel.fgov.be/sites/default/files/files/opendata/Verkeersslachtoffers/TF_ACCIDENTS_VICTIMS_2018.zip
+          format:
+            id: CSV
+            title: CSV
+          id: 212c04a1-3781-4e41-b424-08f4cb230ae5
+          language:
+          - nl
+          license:
+            id: https://statbel.fgov.be/sites/default/files/files/opendata/Licence%20open%20data_NL.pdf
+            resource: https://statbel.fgov.be/sites/default/files/files/opendata/Licence%20open%20data_NL.pdf
+            title: https://statbel.fgov.be/sites/default/files/files/opendata/Licence%20open%20data_NL.pdf
+          media_type: ''
+          rights: []
+          title:
+            nl: TXT (ZIP)
+        - access_url: https://statbel.fgov.be/fr/open-data/victimes-daccidents-de-la-route-2018
+          download_url:
+          - https://statbel.fgov.be/sites/default/files/files/opendata/Verkeersslachtoffers/TF_ACCIDENTS_VICTIMS_2018.zip
+          format:
+            id: CSV
+            title: CSV
+          id: 6ce2927d-bced-4878-8557-13b33455d1fc
+          language:
+          - fr
+          license:
+            id: https://statbel.fgov.be/sites/default/files/files/opendata/Licence%20open%20data_FR.pdf
+            resource: https://statbel.fgov.be/sites/default/files/files/opendata/Licence%20open%20data_FR.pdf
+            title: https://statbel.fgov.be/sites/default/files/files/opendata/Licence%20open%20data_FR.pdf
+          media_type: ''
+          rights: []
+          title:
+            fr: TXT (ZIP)
+        format:
+        - XLSX
+        - CSV
+        identifier:
+        - 9acb7fdd9be099b2a75c35af0cb2be2745795051
+        keywords:
+        - id: road-accidents
+          title: road accidents
+        - id: mobilite-
+          title: mobilité
+        - id: verkeer
+          title: verkeer
+        - id: accidents-et-victimes-de-la-circulation
+          title: accidents et victimes de la circulation
+        - id: mobiliteit
+          title: mobiliteit
+        - id: verkeersongevallen-en-slachtoffers
+          title: verkeersongevallen en -slachtoffers
+        - id: circulation
+          title: circulation
+        - id: circulation
+          title: circulation
+        - id: mobility
+          title: mobility
+        language:
+        - en
+        - nl
+        - fr
+        publisher:
+          homepage: http://statbel.fgov.be/
+          name: Statbel
+          resource: http://org.belgif.be/id/cbe/site/2_146_814_391
+          type: Organization
+        title:
+          en: Road casualties 2018
+          fr: Victimes d’accidents de la route 2018
+          nl: Verkeersslachtoffers 2018
+        translation_meta:
+          details:
+            en:
+              machine_translated: false
+            fr:
+              machine_translated: false
+            nl:
+              machine_translated: false
+          full_available_languages:
+          - en
+          - nl
+          - fr
+          status: unknown
+      meta:
+        url: https://www.europeandataportal.eu/data/datasets/9acb7fdd9be099b2a75c35af0cb2be2745795051
+        localId: 9acb7fdd9be099b2a75c35af0cb2be2745795051

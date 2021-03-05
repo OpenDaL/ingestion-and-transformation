@@ -592,6 +592,9 @@ class FormatMixin:
         get_format_from_harvested -- Optional; If true, the format data is
         taken from the metadata.harvested instead of
         metadata.structured
+
+        format_accept_subvalues -- Optional; accept_subvalue parameter for
+        _aux.get_data_from_loc function
     """
 
     def __init__(
@@ -1467,7 +1470,10 @@ class NCEIStructurer(ElasticSearchStructurer):
     def __init__(self, *args, **kwargs):
         super().__init__(
             *args,
-            base_url='https://www.ncei.noaa.gov/metadata/geoportal/rest/metadata/item/',
+            base_url=(
+                'https://www.ncei.noaa.gov/metadata/geoportal/rest/'
+                'metadata/item/'
+            ),
             **kwargs
         )
 
@@ -1539,3 +1545,27 @@ class GeonetworkStructurer(KeyIdMixin, BaseUrlMixin, Structurer):
             id_key={'geonet:info': 'uuid'},
             **kwargs
         )
+
+
+class EUDPStructurer(
+        KeyValueFilterMixin, KeyIdMixin, BaseUrlMixin, FormatMixin, Structurer
+        ):
+    """
+    Structurer for data from the European Data Portal
+    """
+    def __init__(self, *args, **kwargs):
+        super().__init__(
+            *args,
+            id_key='id',
+            format_key={'distributions': {'format': 'id'}},
+            **kwargs
+        )
+
+    def _process(self, metadata: ResourceMetadata):
+        """
+        Add 'dataset' if a type is not defined
+        """
+        if 'type' not in metadata.structured:
+            metadata.structured['type'] = 'Dataset'
+
+        super()._process(metadata)
