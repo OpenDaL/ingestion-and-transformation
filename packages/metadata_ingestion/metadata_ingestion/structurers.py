@@ -1585,3 +1585,27 @@ class UdataStructurer(
             format_key={'resources': 'format'},
             **kwargs
         )
+
+
+class DataJSONStructurer(
+        KeyIdMixin, FormatMixin, Structurer
+        ):
+    """
+    Structurer for Data.json data
+    """
+    def __init__(self, *args, **kwargs):
+        super().__init__(
+            *args,
+            id_key='identifier',
+            format_key={'distribution': 'format'},
+            **kwargs
+        )
+
+    def _process(self, metadata: ResourceMetadata):
+        type_ = metadata.structured.pop('@type')
+        if type_:
+            metadata.structured['type'] = type_
+
+        super()._process(metadata)
+
+        metadata.meta['url'] = metadata.meta['localId']

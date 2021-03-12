@@ -883,6 +883,9 @@ def udata(data, base_url=None):
     return structure_using_structurer(data, udata_structurer)
 
 
+data_json_structurer = structurers.DataJSONStructurer('')
+
+
 def data_json(data):
     """
     Structurer for data.json data
@@ -890,35 +893,7 @@ def data_json(data):
     Arguments:
         data --- dict: The data of a single entry
     """
-    structured = copy.deepcopy(data)
-    dataset_url = dataset_id = data.pop('identifier')
-
-    # Add the data to the entry
-    ext_reference = create_dplatform_externalReference(dataset_url)
-    structured.update(
-        {'_dplatform_externalReference': ext_reference,
-         '_dplatform_uid': dataset_id}
-        )
-
-    # Rename type key and get formats from distributions
-    type_ = structured.pop('@type')
-    if type_:
-        structured['type'] = type_
-
-    dist_data = structured.pop('distribution')
-    formats = []
-    if dist_data:
-        if isinstance(dist_data, dict):
-            dist_data = [dist_data]
-        if isinstance(dist_data, list):
-            for dist in dist_data:
-                format = dist.get('format')
-                if format:
-                    formats.append(format)
-    if formats:
-        structured['format'] = formats
-
-    return structured
+    return structure_using_structurer(data, data_json_structurer)
 
 
 def dcat_xml(data):

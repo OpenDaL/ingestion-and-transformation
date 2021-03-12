@@ -5781,3 +5781,77 @@ UdataStructurer:
       meta:
         url: https://dados.gov.pt/en/datasets/producao-cientifica-portuguesa-1996-2017-series-estatisticas
         localId: 5d4a9d83454ae3284eb66aa6
+DataJSONStructurer:
+  - args: ['']
+    kwargs: {}
+    input:
+      '@type': dcat:Dataset
+      accrualPeriodicity: http://purl.org/linked-data/sdmx/2009/code#freq-A
+      category: Elanikkond ja ühiskond
+      contactPoint:
+        '@type': vcard:Contact
+        fn: Risto Järv
+        hasEmail: risto.jarv@folklore.ee
+      description: Andmebaasis olevate lastemängude kirjeldused (kirjalikud tekstid) pärinevad
+        Eesti Rahvaluule Arhiivi kogudest. Suurem osa veebivalimiku mängukirjeldustest pärineb
+        lastemängude ülemaalise kogumiskonkursi (1934–1935) saadetistest. Kogumisvõistlus
+        korraldati koostöös Haridusministeeriumi koolivalitsusega, mängukirjeldused ja joonistused
+        on kooliõpilastelt. Mänge on valitud kõikidest endistest Eesti maakondadest. Valimik
+        sisaldab põhiosa omaaegsest populaarsest mänguvaramust 5–15-aastaste laste seas,
+        tuues ära ka unikaalsemaid ning ainukordsemaid mänge. Samuti leiab kogumikust nii
+        praeguseni mängitavaid kui juba unustusehõlma vajunud mängude kirjeldusi. Tekste
+        on kohendatud loetavamaks, kuid siiski sisaldavad need ka ajastuomast, paiguti tänapäeva
+        ortograafiareeglitele mittevastavat kirjapilti. Ühest ja samast mängust võib olla
+        esitatud mitu eri varianti, mis aitavad paremini mõista mängureegleid ning suunavad
+        tähelepanu eri piirkondades kasutusel olnud erisugustele mängunimetustele.
+      distribution:
+      - '@type': dcat:Distribution
+        accessURL: https://metashare.ut.ee/repository/browse/1001-lastemangu-aastast-1935/096d94c8317611e7a6e4005056b400241df1202cc85249a5be7f6b5c8ca67692/
+        format: xht
+        title: laste
+      identifier: https://opendata.riik.ee/andmehulgad/1001%20lastem%C3%A4ngu%20aastast%201935%20-%20kirjeldused/
+      issued: 2020/03/28
+      license: OTHER
+      modified: 2021/01/09
+      publisher:
+        '@type': org:Organization
+        name: Eesti Kirjandusmuuseum
+      title: 1001 lastemängu aastast 1935 - kirjeldused
+    output:
+      structured:
+        accrualPeriodicity: http://purl.org/linked-data/sdmx/2009/code#freq-A
+        category: Elanikkond ja ühiskond
+        contactPoint:
+          '@type': vcard:Contact
+          fn: Risto Järv
+          hasEmail: risto.jarv@folklore.ee
+        description: Andmebaasis olevate lastemängude kirjeldused (kirjalikud tekstid) pärinevad
+          Eesti Rahvaluule Arhiivi kogudest. Suurem osa veebivalimiku mängukirjeldustest pärineb
+          lastemängude ülemaalise kogumiskonkursi (1934–1935) saadetistest. Kogumisvõistlus
+          korraldati koostöös Haridusministeeriumi koolivalitsusega, mängukirjeldused ja joonistused
+          on kooliõpilastelt. Mänge on valitud kõikidest endistest Eesti maakondadest. Valimik
+          sisaldab põhiosa omaaegsest populaarsest mänguvaramust 5–15-aastaste laste seas,
+          tuues ära ka unikaalsemaid ning ainukordsemaid mänge. Samuti leiab kogumikust nii
+          praeguseni mängitavaid kui juba unustusehõlma vajunud mängude kirjeldusi. Tekste
+          on kohendatud loetavamaks, kuid siiski sisaldavad need ka ajastuomast, paiguti tänapäeva
+          ortograafiareeglitele mittevastavat kirjapilti. Ühest ja samast mängust võib olla
+          esitatud mitu eri varianti, mis aitavad paremini mõista mängureegleid ning suunavad
+          tähelepanu eri piirkondades kasutusel olnud erisugustele mängunimetustele.
+        distribution:
+        - '@type': dcat:Distribution
+          accessURL: https://metashare.ut.ee/repository/browse/1001-lastemangu-aastast-1935/096d94c8317611e7a6e4005056b400241df1202cc85249a5be7f6b5c8ca67692/
+          format: xht
+          title: laste
+        format:
+        - xht
+        issued: 2020/03/28
+        license: OTHER
+        modified: 2021/01/09
+        publisher:
+          '@type': org:Organization
+          name: Eesti Kirjandusmuuseum
+        title: 1001 lastemängu aastast 1935 - kirjeldused
+        type: dcat:Dataset
+      meta:
+        url: https://opendata.riik.ee/andmehulgad/1001%20lastem%C3%A4ngu%20aastast%201935%20-%20kirjeldused/
+        localId: https://opendata.riik.ee/andmehulgad/1001%20lastem%C3%A4ngu%20aastast%201935%20-%20kirjeldused/
