@@ -11,7 +11,6 @@ Every Flattening Function should:
 """
 import re
 import logging
-import copy
 
 from metadata_ingestion import _dataio, _aux, structurers
 from metadata_ingestion import settings as st
@@ -896,6 +895,9 @@ def data_json(data):
     return structure_using_structurer(data, data_json_structurer)
 
 
+dcat_xml_structurer = structurers.DcatXMLStructurer('')
+
+
 def dcat_xml(data):
     """
     Structuring function for DCAT XML parsed data
@@ -903,25 +905,7 @@ def dcat_xml(data):
     Arguments:
         data --- dict: The data for a single entry
     """
-    cleaned = _aux.clean_xml_metadata(data, prefer_upper=True)
-
-    structured = copy.deepcopy(cleaned['Dataset'])
-
-    # Create the URL:
-    dataset_id = structured.pop('identifier', None)
-    dataset_url = structured.pop('about', None)
-    if dataset_id is None or dataset_url is None:
-        # Should be very rare
-        return
-
-    # Add the data to the entry
-    ext_reference = create_dplatform_externalReference(dataset_url)
-    structured.update(
-        {'_dplatform_externalReference': ext_reference,
-         '_dplatform_uid': str(dataset_id)}
-        )
-
-    return structured
+    return structure_using_structurer(data, dcat_xml_structurer)
 
 
 STRUCTURING_LOOKUP = {

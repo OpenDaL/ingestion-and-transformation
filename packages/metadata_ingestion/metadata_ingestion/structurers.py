@@ -115,7 +115,8 @@ class KeyIdMixin:
 
         local_id = str(_aux.get_data_from_loc(basedata, self.id_key, pop=True))
         metadata.meta['localId'] = local_id
-        metadata.meta['globalId'] = self.get_global_id(local_id)
+        if local_id is not None:
+            metadata.meta['globalId'] = self.get_global_id(local_id)
         super()._process(metadata)
 
 
@@ -1609,3 +1610,30 @@ class DataJSONStructurer(
         super()._process(metadata)
 
         metadata.meta['url'] = metadata.meta['localId']
+
+
+class DcatXMLStructurer(
+        KeyIdMixin, KeyUrlMixin, FormatMixin, Structurer
+        ):
+    """
+    Structurer for DCAT XML data
+    """
+    def __init__(self, *args, **kwargs):
+        super().__init__(
+            *args,
+            id_key='identifier',
+            url_key='about',
+            format_key={'distribution': {'format': 'value'}},
+            **kwargs
+            )
+
+    def _fill_structured(self, metadata: ResourceMetadata):
+        cleaned = _aux.clean_xml_metadata(
+            metadata.harvested, prefer_upper=True
+        )
+        metadata.structured = cleaned['Dataset']
+
+    def _process(self, metadata: ResourceMetadata):
+        super()._process(metadata)
+        if metadata.meta['localId'] is None or metadata.meta['url'] is None:
+            metadata.is_filtered = True

@@ -5855,3 +5855,200 @@ DataJSONStructurer:
       meta:
         url: https://opendata.riik.ee/andmehulgad/1001%20lastem%C3%A4ngu%20aastast%201935%20-%20kirjeldused/
         localId: https://opendata.riik.ee/andmehulgad/1001%20lastem%C3%A4ngu%20aastast%201935%20-%20kirjeldused/
+DcatXMLStructurer:
+  - args: ['']
+    kwargs: {}
+    input:
+      Dataset:
+        '@about': https://abertos.xunta.gal/catalogo/economia-empresa-emprego/-/dataset/0427/calendario-laboral-2021
+        description:
+        - '#text': "Calendario laboral para el año 2021 en la Comunidad Autónoma de Galicia.\
+            \ Incluye todos los festivos que se recogen en: \n\tNota: las fiestas mencionadas\
+            \ tendrán carácter obligatorio y no recuperable."
+          '@lang': es
+        - '#text': "Calendario laboral para o ano 2021 na Comunidade Autónoma de Galicia.\
+            \ Inclúe todos os festivos que se recollen en: \n\tNota: as festas mencionadas\
+            \ terán carácter obrigatorio e non recuperable."
+          '@lang': gl
+        distribution:
+        - Distribution:
+            accessURL:
+              '@resource': https://abertos.xunta.gal/catalogo/economia-empresa-emprego/-/dataset/0427/calendario-laboral-2021/001/descarga-directa-ficheiro.csv
+            byteSize:
+              '#text': '33792'
+              '@datatype': http://www.w3.org/2001/XMLSchema#decimal
+            format:
+              IMT:
+                label: CSV
+                value: text/csv
+            identifier: https://abertos.xunta.gal/catalogo/economia-empresa-emprego/-/dataset/0427/calendario-laboral-2021/001/descarga-directa-ficheiro.csv
+            title:
+            - '#text': Descarga del archivo en formato .csv
+              '@lang': es
+            - '#text': Descarga do ficheiro en formato .csv
+              '@lang': gl
+        - Distribution:
+            accessURL:
+              '@resource': https://abertos.xunta.gal/catalogo/economia-empresa-emprego/-/dataset/0427/calendario-laboral-2021/002/descarga-directa-ficheiro.ods
+            byteSize:
+              '#text': '26624'
+              '@datatype': http://www.w3.org/2001/XMLSchema#decimal
+            format:
+              IMT:
+                label: ODS
+                value: application/vnd.oasis.opendocument.spreadsheet
+            identifier: https://abertos.xunta.gal/catalogo/economia-empresa-emprego/-/dataset/0427/calendario-laboral-2021/002/descarga-directa-ficheiro.ods
+            title:
+            - '#text': Descarga del archivo en formato .ods
+              '@lang': es
+            - '#text': Descarga do ficheiro en formato .ods
+              '@lang': gl
+        - Distribution:
+            accessURL:
+              '@resource': https://abertos.xunta.gal/catalogo/economia-empresa-emprego/-/dataset/0427/calendario-laboral-2021/003/descarga-directa-ficheiro.xlsx
+            byteSize:
+              '#text': '30720'
+              '@datatype': http://www.w3.org/2001/XMLSchema#decimal
+            format:
+              IMT:
+                label: XLSX
+                value: application/vnd.ms-excel
+            identifier: https://abertos.xunta.gal/catalogo/economia-empresa-emprego/-/dataset/0427/calendario-laboral-2021/003/descarga-directa-ficheiro.xlsx
+            title:
+            - '#text': Descarga del archivo en formato .xlsx
+              '@lang': es
+            - '#text': Descarga do ficheiro en formato .xlsx
+              '@lang': gl
+        - Distribution:
+            accessURL:
+              '@resource': https://abertos.xunta.gal/catalogo/economia-empresa-emprego/-/dataset/0427/calendario-laboral-2021/004/descarga-directa-ficheiro.calendario
+            byteSize:
+              '#text': '78848'
+              '@datatype': http://www.w3.org/2001/XMLSchema#decimal
+            format:
+              IMT:
+                label: Calendario
+                value: text/calendar
+            identifier: https://abertos.xunta.gal/catalogo/economia-empresa-emprego/-/dataset/0427/calendario-laboral-2021/004/descarga-directa-ficheiro.calendario
+            title:
+            - '#text': Descarga del archivo en formato .ics versión para aplicar a su calendario
+                - sin festivos locales
+              '@lang': es
+            - '#text': Descarga do ficheiro en formato .ics - versión para aplicar ao seu
+                calendario - sen festivos locais
+              '@lang': gl
+        identifier: https://abertos.xunta.gal/catalogo/economia-empresa-emprego/-/dataset/0427/calendario-laboral-2021
+        issued:
+          '#text': '2020-11-11T11:57:00Z'
+          '@datatype': http://www.w3.org/2001/XMLSchema#date
+        language:
+        - es
+        - gl
+        license:
+          '@resource': http://creativecommons.org/licenses/by/3.0/es/deed.gl
+        modified:
+          '#text': '2021-01-04T11:57:00Z'
+          '@datatype': http://www.w3.org/2001/XMLSchema#date
+        publisher:
+          '@resource': http://datos.gob.es/recurso/sector-publico/org/Organismo/A12002994
+        spatial:
+          '@resource': http://datos.gob.es/recurso/sector-publico/territorio/Autonomia/Galicia
+        theme:
+          '@resource': http://datos.gob.es/kos/sector-publico/sector/economia
+        title:
+        - '#text': Calendario laboral 2021
+          '@lang': es
+        - '#text': Calendario laboral 2021
+          '@lang': gl
+    output:
+      structured:
+        description:
+        - _content: "Calendario laboral para el año 2021 en la Comunidad Autónoma de Galicia.\
+            \ Incluye todos los festivos que se recogen en: \n\tNota: las fiestas mencionadas\
+            \ tendrán carácter obligatorio y no recuperable."
+          lang: es
+        - _content: "Calendario laboral para o ano 2021 na Comunidade Autónoma de Galicia.\
+            \ Inclúe todos os festivos que se recollen en: \n\tNota: as festas mencionadas\
+            \ terán carácter obrigatorio e non recuperable."
+          lang: gl
+        distribution:
+        - accessURL: https://abertos.xunta.gal/catalogo/economia-empresa-emprego/-/dataset/0427/calendario-laboral-2021/001/descarga-directa-ficheiro.csv
+          byteSize:
+            _content: '33792'
+            datatype: http://www.w3.org/2001/XMLSchema#decimal
+          format:
+            label: CSV
+            value: text/csv
+          identifier: https://abertos.xunta.gal/catalogo/economia-empresa-emprego/-/dataset/0427/calendario-laboral-2021/001/descarga-directa-ficheiro.csv
+          title:
+          - _content: Descarga del archivo en formato .csv
+            lang: es
+          - _content: Descarga do ficheiro en formato .csv
+            lang: gl
+        - accessURL: https://abertos.xunta.gal/catalogo/economia-empresa-emprego/-/dataset/0427/calendario-laboral-2021/002/descarga-directa-ficheiro.ods
+          byteSize:
+            _content: '26624'
+            datatype: http://www.w3.org/2001/XMLSchema#decimal
+          format:
+            label: ODS
+            value: application/vnd.oasis.opendocument.spreadsheet
+          identifier: https://abertos.xunta.gal/catalogo/economia-empresa-emprego/-/dataset/0427/calendario-laboral-2021/002/descarga-directa-ficheiro.ods
+          title:
+          - _content: Descarga del archivo en formato .ods
+            lang: es
+          - _content: Descarga do ficheiro en formato .ods
+            lang: gl
+        - accessURL: https://abertos.xunta.gal/catalogo/economia-empresa-emprego/-/dataset/0427/calendario-laboral-2021/003/descarga-directa-ficheiro.xlsx
+          byteSize:
+            _content: '30720'
+            datatype: http://www.w3.org/2001/XMLSchema#decimal
+          format:
+            label: XLSX
+            value: application/vnd.ms-excel
+          identifier: https://abertos.xunta.gal/catalogo/economia-empresa-emprego/-/dataset/0427/calendario-laboral-2021/003/descarga-directa-ficheiro.xlsx
+          title:
+          - _content: Descarga del archivo en formato .xlsx
+            lang: es
+          - _content: Descarga do ficheiro en formato .xlsx
+            lang: gl
+        - accessURL: https://abertos.xunta.gal/catalogo/economia-empresa-emprego/-/dataset/0427/calendario-laboral-2021/004/descarga-directa-ficheiro.calendario
+          byteSize:
+            _content: '78848'
+            datatype: http://www.w3.org/2001/XMLSchema#decimal
+          format:
+            label: Calendario
+            value: text/calendar
+          identifier: https://abertos.xunta.gal/catalogo/economia-empresa-emprego/-/dataset/0427/calendario-laboral-2021/004/descarga-directa-ficheiro.calendario
+          title:
+          - _content: Descarga del archivo en formato .ics versión para aplicar a su calendario
+              - sin festivos locales
+            lang: es
+          - _content: Descarga do ficheiro en formato .ics - versión para aplicar ao seu calendario
+              - sen festivos locais
+            lang: gl
+        format:
+        - application/vnd.oasis.opendocument.spreadsheet
+        - text/calendar
+        - text/csv
+        - application/vnd.ms-excel
+        issued:
+          _content: '2020-11-11T11:57:00Z'
+          datatype: http://www.w3.org/2001/XMLSchema#date
+        language:
+        - es
+        - gl
+        license: http://creativecommons.org/licenses/by/3.0/es/deed.gl
+        modified:
+          _content: '2021-01-04T11:57:00Z'
+          datatype: http://www.w3.org/2001/XMLSchema#date
+        publisher: http://datos.gob.es/recurso/sector-publico/org/Organismo/A12002994
+        spatial: http://datos.gob.es/recurso/sector-publico/territorio/Autonomia/Galicia
+        theme: http://datos.gob.es/kos/sector-publico/sector/economia
+        title:
+        - _content: Calendario laboral 2021
+          lang: es
+        - _content: Calendario laboral 2021
+          lang: gl
+      meta:
+        url: https://abertos.xunta.gal/catalogo/economia-empresa-emprego/-/dataset/0427/calendario-laboral-2021
+        localId: https://abertos.xunta.gal/catalogo/economia-empresa-emprego/-/dataset/0427/calendario-laboral-2021
