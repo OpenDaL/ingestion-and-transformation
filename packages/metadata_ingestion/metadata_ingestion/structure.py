@@ -861,6 +861,9 @@ def junar(data):
     return structure_using_structurer(data, _junar_structurer)
 
 
+udata_structurer = structurers.UdataStructurer('')
+
+
 def udata(data, base_url=None):
     """
     Structure data harvested from a Udata API (v1)
@@ -876,31 +879,8 @@ def udata(data, base_url=None):
         'page' value is used. (Note that this is usefull if the default page
         links to a different language version of the webpage)
     """
-    structured_metadata = copy.deepcopy(data)
-
-    dataset_id = structured_metadata.pop('id')
-    slug = structured_metadata.pop('slug')
-    dataset_url = structured_metadata.pop('page')
-    if base_url:
-        dataset_url = base_url.strip('/') + '/' + slug
-
-    ext_reference = create_dplatform_externalReference(dataset_url)
-    structured_metadata.update(
-        {'_dplatform_externalReference': ext_reference,
-         '_dplatform_uid': dataset_id}
-        )
-
-    # Get the formats from the resources list
-    resources = structured_metadata.pop('resources', [])
-    formats = set()
-    for resource in resources:
-        format = resource.get('format')
-        if format:
-            formats.add(format)
-    if formats:
-        structured_metadata['format'] = list(formats)
-
-    return structured_metadata
+    udata_structurer.base_url = base_url
+    return structure_using_structurer(data, udata_structurer)
 
 
 def data_json(data):

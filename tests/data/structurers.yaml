@@ -5508,3 +5508,276 @@ EUDPStructurer:
       meta:
         url: https://www.europeandataportal.eu/data/datasets/9acb7fdd9be099b2a75c35af0cb2be2745795051
         localId: 9acb7fdd9be099b2a75c35af0cb2be2745795051
+UdataStructurer:
+  - args: ['']
+    kwargs:
+      base_url: https://dados.gov.pt/en/datasets/
+    input:
+      acronym: null
+      badges: []
+      created_at: '2019-08-07T10:44:35.318000'
+      deleted: null
+      description: "Informação relativa a:\t\t\t\t\t\nQuadro 1. Número de publicações por\
+        \ milhão de habitantes nos vários países da União Europeia: 2007, 2012 e 2017\t\t\
+        \nGráfico 1. Número de publicações por milhão de habitantes nos vários países da\
+        \ União Europeia: 2007 e 2017\t\nGráfico 2. Taxa de crescimento médio anual, entre\
+        \ 2007 e 2017, do número de publicações por milhão de habitantes nos vários países\
+        \ da União Europeia \nGráfico 3. Taxa de crescimento médio anual, entre 2012 e 2017,\
+        \ do número de publicações por milhão de habitantes nos vários países da União Europeia\t\
+        \nGráfico 4 e Quadro 2. Número de publicações portuguesas por área de investigação\
+        \ e desenvolvimento: 1996-2017 \nGráfico 5. Número de publicações portuguesas por\
+        \ área de investigação e desenvolvimento: 2007, 2012 e 2017\t\t\t\t\t\nGráfico 6.\
+        \ Taxa de crescimento médio anual, entre 2007 e 2017, do número de publicações portuguesas,\
+        \ por área de investigação e desenvolvimento\t\t\t\t\t\t\t\t\nGráfico 7. Taxa de\
+        \ crescimento médio anual, entre 2012 e 2017, do número de publicações portuguesas,\
+        \ por área de investigação e desenvolvimento\t\nGráfico 8 e Quadro 3. Número de\
+        \ publicações portuguesas por área de investigação e desenvolvimento: Ciências Exatas\
+        \ e Naturais (1996-2017)\t\nGráfico 9 e Quadro 4. Número de publicações portuguesas\
+        \ por área de investigação e desenvolvimento: Ciências da Engenharia e Tecnologias\
+        \ (1996-2017)\t\nGráfico 10 e Quadro 5. Número de publicações portuguesas por área\
+        \ de investigação e desenvolvimento: Ciências Médicas e da Saúde (1996-2017)\t\n\
+        Gráfico 11 e Quadro 6. Número de publicações portuguesas por área de investigação\
+        \ e desenvolvimento: Ciências Agrárias e Veterinárias (1996-2017)\t\nGráfico 12\
+        \ e Quadro 7. Número de publicações portuguesas por área de investigação e desenvolvimento:\
+        \ Ciências Sociais (1996-2017)\t\nGráfico 13 e Quadro 8. Número de publicações portuguesas\
+        \ por área de investigação e desenvolvimento: Humanidades e Artes (1996-2017)\t\n\
+        Gráfico 14 e Quadro 9. Número de publicações portuguesas por tipo de documento (1996-2017)\t\
+        \nGráfico 15 e Quadro 10. Número de publicações em co-autoria com instituições de\
+        \ outros países (1996-2017)\t\nGráfico 16 e Quadro 11. Número de publicações em\
+        \ co-autoria com instituições de outros países, por área de investigação e desenvolvimento\
+        \ (1996-2017)\t\nQuadro 12. Número de publicações em co-autoria com instituições\
+        \ de outros países, por país (1996-2017)\t\nQuadro 13. Número de publicações em\
+        \ co-autoria com instituições de outros países, por país: Ciências Exatas e Naturais\
+        \ (1996-2017)\t\nQuadro 14. Número de publicações em co-autoria com instituições\
+        \ de outros países, por país: Ciências da Engenharia e Tecnologias (1996-2017)\t\
+        \nQuadro 15. Número de publicações em co-autoria com instituições de outros países,\
+        \ por país: Ciências Médicas (1996-2017)\t\t\nQuadro 16. Número de publicações em\
+        \ co-autoria com instituições de outros países, por país: Ciências Agrárias (1996-2017)\t\
+        \nQuadro 17. Número de publicações em co-autoria com instituições de outros países,\
+        \ por país: Ciências Sociais (1996-2017)\t\nQuadro 18. Número de publicações em\
+        \ co-autoria com instituições de outros países, por país: Humanidades (1996-2017)\t\
+        \t\t\t\t\t\t\t\n"
+      extras: {}
+      frequency: annual
+      frequency_date: '2019-02-28T00:00:00'
+      id: 5d4a9d83454ae3284eb66aa6
+      last_modified: '2019-08-07T10:47:45.122000'
+      last_update: '2019-02-28T00:00:00'
+      license: other-pd
+      metrics:
+        discussions: 0
+        followers: 0
+        issues: 0
+        reuses: 0
+        views: 0
+      organization:
+        acronym: dgeec
+        class: Organization
+        id: 5ae97f97c8d8c915d5faa3b4
+        logo: https://dados.gov.pt/s/avatars/c2/ff47b694a446978b75a510b75f4c58-original.png
+        logo_thumbnail: https://dados.gov.pt/s/avatars/c2/ff47b694a446978b75a510b75f4c58-100.png
+        name: DGEEC
+        page: https://dados.gov.pt/pt/organizations/dgeec/
+        slug: dgeec
+        uri: https://dados.gov.pt/api/1/organizations/dgeec/
+      owner: null
+      page: https://dados.gov.pt/pt/datasets/producao-cientifica-portuguesa-1996-2017-series-estatisticas/
+      private: false
+      resources:
+      - checksum: null
+        created_at: '2019-08-07T10:47:45.058000'
+        description: null
+        extras:
+          check:available: true
+          check:count-availability: 22
+          check:date: '2021-02-05T00:22:51.676000'
+          check:status: 302
+        filesize: null
+        filetype: remote
+        format: ods
+        id: 2c4c9a96-a862-4342-abb9-2afb853b1be2
+        last_modified: '2019-08-07T10:47:45.058000'
+        latest: https://dados.gov.pt/pt/datasets/r/2c4c9a96-a862-4342-abb9-2afb853b1be2
+        metrics:
+          views: 0
+        mime: null
+        preview_url: null
+        published: '2019-02-28T00:00:00'
+        title: 'Produção Científica Portuguesa, 1996-2017: Séries Estatísticas'
+        type: main
+        url: http://www.dgeec.mec.pt/np4/210/%7B$clientServletPath%7D/?newsId=116&fileName=SE_1996_20171.ods
+      - checksum: null
+        created_at: '2019-08-07T10:45:19.426000'
+        description: null
+        extras:
+          check:available: true
+          check:count-availability: 22
+          check:date: '2021-02-05T00:22:51.613000'
+          check:status: 302
+        filesize: null
+        filetype: remote
+        format: xlsx
+        id: 7f382e60-d59b-4f79-8d21-a8ea6cefd790
+        last_modified: '2019-08-07T10:45:19.426000'
+        latest: https://dados.gov.pt/pt/datasets/r/7f382e60-d59b-4f79-8d21-a8ea6cefd790
+        metrics:
+          views: 0
+        mime: null
+        preview_url: null
+        published: '2019-02-28T00:00:00'
+        title: 'Produção Científica Portuguesa, 1996-2017: Séries Estatísticas'
+        type: main
+        url: http://www.dgeec.mec.pt/np4/210/%7B$clientServletPath%7D/?newsId=116&fileName=SE_1996_2017.xlsx
+      slug: producao-cientifica-portuguesa-1996-2017-series-estatisticas
+      spatial:
+        geom: null
+        granularity: other
+        zones:
+        - country:pt
+        - pt:distrito:40
+        - pt:distrito:30
+      tags:
+      - co-autoria
+      - i-d
+      - publicacoes-cientificas
+      - publicacoes-portuguesas
+      temporal_coverage:
+        end: '2017-12-31'
+        start: '1996-01-01'
+      title: 'Produção Científica Portuguesa, 1996-2017: Séries Estatísticas'
+      uri: https://dados.gov.pt/api/1/datasets/producao-cientifica-portuguesa-1996-2017-series-estatisticas/
+    output:
+      structured:
+        created_at: '2019-08-07T10:44:35.318000'
+        description: "Informação relativa a:\t\t\t\t\t\nQuadro 1. Número de publicações por\
+          \ milhão de habitantes nos vários países da União Europeia: 2007, 2012 e 2017\t\t\
+          \nGráfico 1. Número de publicações por milhão de habitantes nos vários países da\
+          \ União Europeia: 2007 e 2017\t\nGráfico 2. Taxa de crescimento médio anual, entre\
+          \ 2007 e 2017, do número de publicações por milhão de habitantes nos vários países\
+          \ da União Europeia \nGráfico 3. Taxa de crescimento médio anual, entre 2012 e 2017,\
+          \ do número de publicações por milhão de habitantes nos vários países da União Europeia\t\
+          \nGráfico 4 e Quadro 2. Número de publicações portuguesas por área de investigação\
+          \ e desenvolvimento: 1996-2017 \nGráfico 5. Número de publicações portuguesas por\
+          \ área de investigação e desenvolvimento: 2007, 2012 e 2017\t\t\t\t\t\nGráfico 6.\
+          \ Taxa de crescimento médio anual, entre 2007 e 2017, do número de publicações portuguesas,\
+          \ por área de investigação e desenvolvimento\t\t\t\t\t\t\t\t\nGráfico 7. Taxa de\
+          \ crescimento médio anual, entre 2012 e 2017, do número de publicações portuguesas,\
+          \ por área de investigação e desenvolvimento\t\nGráfico 8 e Quadro 3. Número de\
+          \ publicações portuguesas por área de investigação e desenvolvimento: Ciências Exatas\
+          \ e Naturais (1996-2017)\t\nGráfico 9 e Quadro 4. Número de publicações portuguesas\
+          \ por área de investigação e desenvolvimento: Ciências da Engenharia e Tecnologias\
+          \ (1996-2017)\t\nGráfico 10 e Quadro 5. Número de publicações portuguesas por área\
+          \ de investigação e desenvolvimento: Ciências Médicas e da Saúde (1996-2017)\t\n\
+          Gráfico 11 e Quadro 6. Número de publicações portuguesas por área de investigação\
+          \ e desenvolvimento: Ciências Agrárias e Veterinárias (1996-2017)\t\nGráfico 12\
+          \ e Quadro 7. Número de publicações portuguesas por área de investigação e desenvolvimento:\
+          \ Ciências Sociais (1996-2017)\t\nGráfico 13 e Quadro 8. Número de publicações portuguesas\
+          \ por área de investigação e desenvolvimento: Humanidades e Artes (1996-2017)\t\n\
+          Gráfico 14 e Quadro 9. Número de publicações portuguesas por tipo de documento (1996-2017)\t\
+          \nGráfico 15 e Quadro 10. Número de publicações em co-autoria com instituições de\
+          \ outros países (1996-2017)\t\nGráfico 16 e Quadro 11. Número de publicações em\
+          \ co-autoria com instituições de outros países, por área de investigação e desenvolvimento\
+          \ (1996-2017)\t\nQuadro 12. Número de publicações em co-autoria com instituições\
+          \ de outros países, por país (1996-2017)\t\nQuadro 13. Número de publicações em\
+          \ co-autoria com instituições de outros países, por país: Ciências Exatas e Naturais\
+          \ (1996-2017)\t\nQuadro 14. Número de publicações em co-autoria com instituições\
+          \ de outros países, por país: Ciências da Engenharia e Tecnologias (1996-2017)\t\
+          \nQuadro 15. Número de publicações em co-autoria com instituições de outros países,\
+          \ por país: Ciências Médicas (1996-2017)\t\t\nQuadro 16. Número de publicações em\
+          \ co-autoria com instituições de outros países, por país: Ciências Agrárias (1996-2017)\t\
+          \nQuadro 17. Número de publicações em co-autoria com instituições de outros países,\
+          \ por país: Ciências Sociais (1996-2017)\t\nQuadro 18. Número de publicações em\
+          \ co-autoria com instituições de outros países, por país: Humanidades (1996-2017)\t\
+          \t\t\t\t\t\t\t\n"
+        format:
+        - xlsx
+        - ods
+        frequency: annual
+        frequency_date: '2019-02-28T00:00:00'
+        last_modified: '2019-08-07T10:47:45.122000'
+        last_update: '2019-02-28T00:00:00'
+        license: other-pd
+        metrics:
+          discussions: 0
+          followers: 0
+          issues: 0
+          reuses: 0
+          views: 0
+        organization:
+          acronym: dgeec
+          class: Organization
+          id: 5ae97f97c8d8c915d5faa3b4
+          logo: https://dados.gov.pt/s/avatars/c2/ff47b694a446978b75a510b75f4c58-original.png
+          logo_thumbnail: https://dados.gov.pt/s/avatars/c2/ff47b694a446978b75a510b75f4c58-100.png
+          name: DGEEC
+          page: https://dados.gov.pt/pt/organizations/dgeec/
+          slug: dgeec
+          uri: https://dados.gov.pt/api/1/organizations/dgeec/
+        page: https://dados.gov.pt/pt/datasets/producao-cientifica-portuguesa-1996-2017-series-estatisticas/
+        private: false
+        resources:
+        - checksum: null
+          created_at: '2019-08-07T10:47:45.058000'
+          description: null
+          extras:
+            check:available: true
+            check:count-availability: 22
+            check:date: '2021-02-05T00:22:51.676000'
+            check:status: 302
+          filesize: null
+          filetype: remote
+          format: ods
+          id: 2c4c9a96-a862-4342-abb9-2afb853b1be2
+          last_modified: '2019-08-07T10:47:45.058000'
+          latest: https://dados.gov.pt/pt/datasets/r/2c4c9a96-a862-4342-abb9-2afb853b1be2
+          metrics:
+            views: 0
+          mime: null
+          preview_url: null
+          published: '2019-02-28T00:00:00'
+          title: 'Produção Científica Portuguesa, 1996-2017: Séries Estatísticas'
+          type: main
+          url: http://www.dgeec.mec.pt/np4/210/%7B$clientServletPath%7D/?newsId=116&fileName=SE_1996_20171.ods
+        - checksum: null
+          created_at: '2019-08-07T10:45:19.426000'
+          description: null
+          extras:
+            check:available: true
+            check:count-availability: 22
+            check:date: '2021-02-05T00:22:51.613000'
+            check:status: 302
+          filesize: null
+          filetype: remote
+          format: xlsx
+          id: 7f382e60-d59b-4f79-8d21-a8ea6cefd790
+          last_modified: '2019-08-07T10:45:19.426000'
+          latest: https://dados.gov.pt/pt/datasets/r/7f382e60-d59b-4f79-8d21-a8ea6cefd790
+          metrics:
+            views: 0
+          mime: null
+          preview_url: null
+          published: '2019-02-28T00:00:00'
+          title: 'Produção Científica Portuguesa, 1996-2017: Séries Estatísticas'
+          type: main
+          url: http://www.dgeec.mec.pt/np4/210/%7B$clientServletPath%7D/?newsId=116&fileName=SE_1996_2017.xlsx
+        slug: producao-cientifica-portuguesa-1996-2017-series-estatisticas
+        spatial:
+          geom: null
+          granularity: other
+          zones:
+          - country:pt
+          - pt:distrito:40
+          - pt:distrito:30
+        tags:
+        - co-autoria
+        - i-d
+        - publicacoes-cientificas
+        - publicacoes-portuguesas
+        temporal_coverage:
+          end: '2017-12-31'
+          start: '1996-01-01'
+        title: 'Produção Científica Portuguesa, 1996-2017: Séries Estatísticas'
+        uri: https://dados.gov.pt/api/1/datasets/producao-cientifica-portuguesa-1996-2017-series-estatisticas/
+      meta:
+        url: https://dados.gov.pt/en/datasets/producao-cientifica-portuguesa-1996-2017-series-estatisticas
+        localId: 5d4a9d83454ae3284eb66aa6

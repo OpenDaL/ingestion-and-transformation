@@ -1569,3 +1569,19 @@ class EUDPStructurer(
             metadata.structured['type'] = 'Dataset'
 
         super()._process(metadata)
+
+
+class UdataStructurer(
+        KeyIdMixin, BaseUrlMixin, FormatMixin, Structurer
+        ):
+    """
+    Structurer for data harvested from a Udata API
+    """
+    def __init__(self, *args, **kwargs):
+        super().__init__(
+            *args,
+            id_key='id',
+            url_suffix_key='slug',
+            format_key={'resources': 'format'},
+            **kwargs
+        )

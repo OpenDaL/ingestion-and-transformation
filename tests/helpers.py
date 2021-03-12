@@ -38,6 +38,9 @@ def compare_output(
     _Note: For lists it checks the length, whether an entry is included, but
     not order_
     """
+    difference_message = '\nExpected: {}\n\nActual:{}'.format(
+        str(reference), str(actual)
+    )
     if all_fields:
         assert len(actual) == len(reference)
         if actual == reference:  # If quick test failse, below logic is needed
@@ -45,10 +48,16 @@ def compare_output(
 
     for key, reference_value in reference.items():
         if reference_value is not None or not assert_none:
-            assert key in actual
+            assert key in actual, (
+                "Key {} not in actual".format(key)
+                + difference_message
+            )
             actual_value = actual[key]
         else:
-            assert key not in actual, "Key {} not in actual".format(key)
+            assert key not in actual, (
+                "Key {} should not be in actual".format(key)
+                + difference_message
+            )
             continue
 
         assert type(reference_value) == type(actual_value)
@@ -63,7 +72,12 @@ def compare_output(
                     if isinstance(ref_item, dict):
                         for actual_item in actual_value:
                             try:
-                                compare_output(actual_item, ref_item)
+                                compare_output(
+                                    actual_item,
+                                    ref_item,
+                                    all_fields=all_fields,
+                                    assert_none=assert_none
+                                )
                                 break
                             except AssertionError:
                                 continue
@@ -75,6 +89,11 @@ def compare_output(
                         assert ref_item in actual_value
 
         elif isinstance(reference_value, dict):
-            compare_output(actual_value, reference_value)
+            compare_output(
+                actual_value,
+                reference_value,
+                all_fields=all_fields,
+                assert_none=assert_none
+            )
         else:
             assert actual_value == reference_value
