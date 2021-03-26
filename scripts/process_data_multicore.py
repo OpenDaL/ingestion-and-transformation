@@ -12,9 +12,8 @@ from pathlib import Path
 import copy
 import logging
 from logging import handlers
-import sys
 
-from metadata_ingestion import _loadcfg, structure, translate, post_process
+from metadata_ingestion import _loadcfg, structurers, translate, post_process
 
 MEMORIZE = 5000
 
@@ -51,7 +50,7 @@ def get_process_logger(logging_queue):
     # Set-up the logger
     logger = logging.getLogger()
     logger.setLevel(LOG_LEVEL)
-    handler = handlers.QueueHandler(logqueue)
+    handler = handlers.QueueHandler(logging_queue)
     handler.setLevel(LOG_LEVEL)
     logger.addHandler(handler)
 
@@ -63,6 +62,7 @@ def process_data(inqueue, outqueue, logqueue):
     Process the list of data
     """
     logger = get_process_logger(logqueue)
+    structurer_cache = {}
 
     while True:
         bdata = inqueue.get()
@@ -74,27 +74,35 @@ def process_data(inqueue, outqueue, logqueue):
                 )
             break
 
-        dformat = bdata['source']['data_format']
-        structurer_kwargs = bdata['source']['structurer_kwargs']
         dplatform_id = bdata['source']['id']
+
+        # Since this only happens on the first access,
+        # it's more efficient to handle the error, than
+        # to check for the key
+        try:
+            structurer = structurer_cache[dplatform_id]
+        except KeyError:
+            s_kwargs = bdata['source']['structurer_kwargs']
+            s_name = bdata['source']['structurer']
+            structurer = getattr(structurers, s_name)(
+                dplatform_id, **s_kwargs
+            )
+            structurer_cache[dplatform_id] = structurer
 
         processed_batch = []
         for line_nr, hdat in bdata['data']:
             try:
                 # Structuring
-                structured_entry = structure.single_entry(
-                    hdat,
-                    dformat,
-                    **structurer_kwargs
-                )
+                metadata = structurer.structure(hdat)
 
-                if structured_entry is None:
-                    # Allows for filtering items
+                if metadata.is_filtered:
                     continue
+                else:
+                    metadata.add_structured_legacy_fields()
 
                 # Translation
                 translated_entry =\
-                    translate.single_entry(structured_entry,
+                    translate.single_entry(metadata.structured,
                                            dplatform_id)
 
                 # Post Processing
@@ -301,13 +309,16 @@ if __name__ == '__main__':
     workers = []
     for i in range(process_count - 2):
         p = Process(
-            target=process_data, args=(input_queue, output_queue, logqueue)
+            target=process_data, args=(input_queue, output_queue, logqueue),
+            daemon=False
         )
         p.start()
         workers.append(p)
 
     # Initiate the writer process
-    writer = Process(target=write_results, args=(output_queue, logqueue))
+    writer = Process(
+        target=write_results, args=(output_queue, logqueue), daemon=False
+    )
     writer.start()
 
     # Start reading data, and put it on the queue
@@ -321,7 +332,10 @@ if __name__ == '__main__':
                 'source': {
                     'id': sourceid,
                     'structurer_kwargs': source.get('structurer_kwargs', {}),
-                    'data_format': source['data_format']
+                    # Don't pass the object, it needs to be pickled each time
+                    # rather each thread keeps a cache of structurers per
+                    # sourceid
+                    'structurer': source['structurer']
                 },
                 'output': Path(out_dir, path.name)
             }
@@ -368,7 +382,5 @@ if __name__ == '__main__':
         output_queue.put({'close': True})
         # Finally, wait for the write process to join
         writer.join()
-    except KeyboardInterrupt:
-        for w in workers:
-            w.terminate()
-        writer.terminate()
+    finally:
+        listener.stop()

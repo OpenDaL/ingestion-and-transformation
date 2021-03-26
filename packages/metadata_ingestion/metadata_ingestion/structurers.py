@@ -36,8 +36,6 @@ class Structurer(ABC):
     Arguments:
         source_id -- str: The id of the source for which this structurer
         structures data (e.g. data_gov_us)
-
-        id_key --- str: Key where the unique identifer of the dataset is stored
     """
 
     def __init__(self, source_id: str):
@@ -100,7 +98,7 @@ class KeyIdMixin:
     """
 
     def __init__(
-            self, *args, id_key: Union[dict, str],
+            self, *args, id_key: Union[dict, str] = None,
             id_from_harvested: bool = False, **kwargs
             ):
         self.id_key = id_key
@@ -108,15 +106,20 @@ class KeyIdMixin:
         super().__init__(*args, **kwargs)
 
     def _process(self, metadata: ResourceMetadata):
-        if self.id_from_harvested:
-            basedata = metadata.harvested
-        else:
-            basedata = metadata.structured
+        if self.id_key is not None:
+            if self.id_from_harvested:
+                basedata = metadata.harvested
+            else:
+                basedata = metadata.structured
 
-        local_id = str(_aux.get_data_from_loc(basedata, self.id_key, pop=True))
-        metadata.meta['localId'] = local_id
-        if local_id is not None:
-            metadata.meta['globalId'] = self.get_global_id(local_id)
+            local_id = str(
+                _aux.get_data_from_loc(
+                    basedata, self.id_key, pop=True
+                )
+            )
+            metadata.meta['localId'] = local_id
+            if local_id is not None:
+                metadata.meta['globalId'] = self.get_global_id(local_id)
         super()._process(metadata)
 
 
@@ -306,7 +309,7 @@ class KeyValueFilterMixin:
     key
 
     Adds Arguments:
-        filter_key_value_options -- Provides the options for filtering
+        key_value_filter_options -- Provides the options for filtering
         key/value combinations, e.g.:
         [
             {
@@ -372,7 +375,7 @@ class KeyValueFilterMixin:
                     'key_value_filter_options'
                 )
 
-            if not filter_type == 'accept':
+            if filter_type != 'accept':
                 continue
 
             self.last_accept_index = i
@@ -1041,9 +1044,7 @@ class OAIISO19139Structurer(
     Structurer for OAI-PMH data with 'metadata' --> 'MD_Metadata' structure.
     """
 
-    def __init__(
-            self, *args, keep_types: list = None, **kwargs
-            ):
+    def __init__(self, *args, **kwargs):
         super().__init__(
             *args,
             metadata_loc={'metadata': 'MD_Metadata'},

@@ -9,8 +9,11 @@ import json
 from pathlib import Path
 import time
 import argparse
+import logging
+from logging import handlers
+import copy
 
-from metadata_ingestion import _loadcfg, structure, translate, post_process
+from metadata_ingestion import _loadcfg, structurers, translate, post_process
 
 MEMORIZE = 2000
 
@@ -45,8 +48,9 @@ def is_valid_output_file(parser, fileloc):
         return path
 
 
-def process_data(in_data, pinfo, out_loc, method, logger, dformat,
-                 structurer_kwargs, dplatform_id, rejects_file=None):
+def process_data(
+        in_data, pinfo, out_loc, method, logger, structurer, dplatform_id
+        ):
     """
     Process the list of data
     """
@@ -62,16 +66,17 @@ def process_data(in_data, pinfo, out_loc, method, logger, dformat,
             last_log_time = time.time()
         try:
             # Structuring
-            structured_entry = structure.single_entry(
-                payload,
-                dformat,
-                **structurer_kwargs
-            )
+            harvested = copy.deepcopy(payload)  # allows to save original
+            metadata = structurer.structure(harvested)
 
-            if structured_entry is None:
+            if metadata.is_filtered:
                 # Allows for filtering items
                 reject_data.append([payload, None])
                 continue
+            else:
+                metadata.add_structured_legacy_fields()
+
+            structured_entry = metadata.structured
 
             # Translation
             translated_entry =\
@@ -119,23 +124,6 @@ def process_data_file(input_loc, output_dir):
     """
     Processes a single file of data, halts on errors
     """
-    # Setup logging, specifically for this process
-    import logging
-    from logging import handlers
-
-    LOG_LOC = os.path.join(output_dir, 'processing.log')
-    logger = logging.getLogger()
-    handler = handlers.RotatingFileHandler(LOG_LOC,
-                                           maxBytes=1048576,
-                                           backupCount=4)
-    formatter = logging.Formatter(
-        '%(asctime)s | %(levelname)-10s | %(name)s: %(message)s'
-    )
-    handler.setFormatter(formatter)
-    handler.setLevel(logging.INFO)
-    logger.setLevel(logging.INFO)
-    logger.addHandler(handler)
-
     logger.info('Start processing')
 
     filename = os.path.split(input_loc)[-1]
@@ -144,8 +132,12 @@ def process_data_file(input_loc, output_dir):
 
     source_data = [s for s in sources if s['id'] == fn_id][0]
     structurer_kwargs = source_data.get('structurer_kwargs', {})
+    structurer_name = source_data['structurer']
 
-    dformat = source_data['data_format']
+    structurer = getattr(structurers, structurer_name)(
+        fn_id, **structurer_kwargs
+    )
+
     dplatform_id = source_data['id']
 
     with open(input_loc, 'r', encoding='utf8') as jsonlinesfile:
@@ -157,12 +149,12 @@ def process_data_file(input_loc, output_dir):
             nr_collected = len(in_data)
             if nr_collected == MEMORIZE:
                 process_data(in_data, process_info, out_loc, method, logger,
-                             dformat, structurer_kwargs, dplatform_id)
+                             structurer, dplatform_id)
                 method = 'a'
         else:
             nr_collected = len(in_data)
             process_data(in_data, process_info, out_loc, method, logger,
-                         dformat, structurer_kwargs, dplatform_id)
+                         structurer, dplatform_id)
         logger.info('finished processing, processed {} lines, yielding {} results'.format(
             process_info['total_processed'],
             process_info['result_count']
@@ -216,6 +208,19 @@ if __name__ == '__main__':
             'WARNING: Post filter disabled. Rejects file will only contain'
             ' rejects from structuring stage'
         )
+
+    log_loc = os.path.join(out_dir, 'processing.log')
+    logger = logging.getLogger()
+    handler = handlers.RotatingFileHandler(
+        log_loc, maxBytes=1048576, backupCount=4
+    )
+    formatter = logging.Formatter(
+        '%(asctime)s | %(levelname)-10s | %(name)s: %(message)s'
+    )
+    handler.setFormatter(formatter)
+    handler.setLevel(logging.INFO)
+    logger.setLevel(logging.INFO)
+    logger.addHandler(handler)
 
     # Set start time, to be able to print progress every 10 seconds
     last_log_time = time.time()
