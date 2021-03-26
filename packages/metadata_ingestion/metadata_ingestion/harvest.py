@@ -1260,12 +1260,7 @@ class SingleJSONHarvester(Harvester):
         None, the root is saved)
     """
 
-    def __init__(self, *args, max_size=None, result_key=None, **kwargs):
-        if not isinstance(max_size, int):
-            raise ValueError(
-                'max_size parameter should be set explicitly (integer)'
-                ', to limit the maximum data size thats returned'
-                )
+    def __init__(self, *args, max_size, result_key=None, **kwargs):
         self.result_key = result_key
         super().__init__(*args, max_size=max_size, **kwargs)
 

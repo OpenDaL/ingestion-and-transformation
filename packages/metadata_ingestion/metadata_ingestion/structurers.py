@@ -303,6 +303,28 @@ class RemoveKeysMixin:
         super()._process(metadata)
 
 
+class RenameKeysMixin:
+    """
+    Structurer Mixin to rename specific keys in metadata.structured
+
+    Adds Arguments:
+        rename_keys -- Contains pairs of original keys, and the key to rename
+        to
+    """
+
+    def __init__(self, *args, rename_keys: list[list] = None, **kwargs):
+        self.rename_keys = rename_keys
+        super().__init__(*args, **kwargs)
+
+    def _process(self, metadata: ResourceMetadata):
+        if self.rename_keys is not None:
+            for oldkey, newkey in self.rename_keys:
+                value = metadata.structured.pop(oldkey, None)
+                if value is not None:
+                    metadata.structured[newkey] = value
+        super()._process(metadata)
+
+
 class KeyValueFilterMixin:
     """
     Structurer Mixin to filter entries that contain specific values under a
@@ -1323,7 +1345,9 @@ class BlackLightStructurer(
         }
 
 
-class SimpleStructurer(KeyIdMixin, KeyUrlMixin, BaseUrlMixin, Structurer):
+class SimpleStructurer(
+        KeyIdMixin, KeyUrlMixin, BaseUrlMixin, RenameKeysMixin, Structurer
+        ):
     """
     Structure simple data formats
 
