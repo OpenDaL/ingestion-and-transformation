@@ -75,7 +75,8 @@ def process_data(in_data, pinfo, out_loc, method, logger, structurer):
         out_data.append(
             {
                 'meta': metadata.meta,
-                'structured': metadata.structured
+                'structured': metadata.structured,
+                'is_filtered': metadata.is_filtered
             }
         )
         pinfo['result_count'] += 1

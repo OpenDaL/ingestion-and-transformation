@@ -65,11 +65,11 @@ class Structurer(ABC):
         metadata = ResourceMetadata(harvested_data, self.source_id)
         self._fill_structured(metadata)
         if metadata.is_filtered:
-            return
+            return metadata
         self._process(metadata)
 
         if metadata.is_filtered:
-            return
+            return metadata
         else:
             metadata.structured = _aux.remove_empty_keys(metadata.structured)
 

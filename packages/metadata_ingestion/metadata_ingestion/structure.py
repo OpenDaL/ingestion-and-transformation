@@ -1008,7 +1008,7 @@ def structure_using_structurer(data, structurer):
     """
     # Using structurers is the new way, function based is legacy:
     metadata = structurer.structure(data)
-    if metadata is not None:
+    if not metadata.is_filtered:
         metadata.add_structured_legacy_fields()
         return metadata.structured
     else:
