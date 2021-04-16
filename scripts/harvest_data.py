@@ -10,7 +10,7 @@ import re
 import argparse
 
 from metadata_ingestion import _loadcfg
-from metadata_ingestion import harvest as aio_harvest  # Module was renamed
+from metadata_ingestion import harvesters
 
 
 def is_valid_folder(parser, dirloc):
@@ -34,8 +34,8 @@ async def run_harvest_tasks(q):
     Runs harvesters on a queue
     """
     while True:
-        harvesters = await q.get()  # Waits untill something is available
-        for harvester in harvesters:
+        harvester_instances = await q.get()
+        for harvester in harvester_instances:
             await harvester.run()
         q.task_done()
 
@@ -54,7 +54,7 @@ async def produce_harvest_tasks(q, output_folder):
     for source in sorted_sources:
         harvester = source.get('harvester')
         if harvester is not None:
-            h = getattr(aio_harvest, harvester)(
+            h = getattr(harvesters, harvester)(
                 id_=source['id'],
                 output_path=output_folder,
                 **source['harvester_kwargs']

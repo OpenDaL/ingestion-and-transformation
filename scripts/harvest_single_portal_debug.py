@@ -7,7 +7,7 @@ import logging
 from logging import handlers
 from pathlib import Path
 
-from metadata_ingestion import harvest as aio_harvest  # Module was renamed
+from metadata_ingestion import harvesters
 
 
 async def main(h):
@@ -15,7 +15,7 @@ async def main(h):
 
 if __name__ == "__main__":
     portal_folder = '/home/brouwer/Downloads/testing'
-    harvester = aio_harvest.GeonodeHarvester(
+    harvester = harvesters.GeonodeHarvester(
         id_='masdap_mw',
         output_path=portal_folder,
         api_url='http://www.masdap.mw/',

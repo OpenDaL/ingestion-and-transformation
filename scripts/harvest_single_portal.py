@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-Script to harvest data using the async harvesters (TESTING ONLY)
+Script to harvest data using a single harvester
 """
 import asyncio
 import logging
@@ -9,7 +9,7 @@ from pathlib import Path
 import argparse
 
 from metadata_ingestion import _loadcfg
-from metadata_ingestion import harvest as aio_harvest  # Module was renamed
+from metadata_ingestion import harvesters
 
 sources = _loadcfg.sources()
 
@@ -74,7 +74,7 @@ if __name__ == "__main__":
 
     portal_metadata = [s for s in sources if s['id'] == portal_id][0]
 
-    harvester = getattr(aio_harvest, portal_metadata['harvester'])(
+    harvester = getattr(harvesters, portal_metadata['harvester'])(
         id_=portal_id,
         output_path=portal_folder,
         **portal_metadata['harvester_kwargs']
