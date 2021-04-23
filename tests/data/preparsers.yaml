@@ -1,0 +1,38 @@
+# Tests for the pre-parsers. One or more should be defined for each preparser
+DatePreparser:
+  - kwargs:
+      fields:
+      - date
+      - dates
+      type_translator_mapping:
+        created: CreatedDateTranslator
+        updated: ModifiedDateTranslator
+        publication: IssuedDateTranslator
+        accepted: OtherDateTranslator
+      datetype_keys:
+        - type
+        - dateType
+      datevalue_keys:
+        - value
+        - date
+    preparse_function_tests:
+    # Test basic preparsing
+    - _structured_before:
+        dates:
+          - value: '2021-02-13'
+            type: 'accepted'
+          # Use preferred key 'value'
+          - date: '2021-03-13'
+            value: '2021-04-16'
+            dateType: 'updated'
+          # Do not use the below, since its lower than the above
+          - date: '2021-04-15'
+            type: 'updated'
+        date: "This is just bullshit content" # Should not be used or popped
+      _structured_after: # Dates field is removed, since it's used
+        date: "This is just bullshit content"
+      _return:
+        OtherDateTranslator:
+          accepted: 2021-02-13T00:00:00Z
+        ModifiedDateTranslator:
+          _preparsed_date: 2021-04-16T00:00:00Z

@@ -14,7 +14,8 @@ setup(
         'shapely>=1.6.4',
         'pyyaml>=5.1.1',
         'aiohttp>=3.5.4',
-        'cloudscraper>=1.2.28'
+        'cloudscraper>=1.2.28',
+        'fastjsonschema>=2.15.0,<3.0.0'
         ],
     package_data={
         'metadata_ingestion': ['default_config.yaml']

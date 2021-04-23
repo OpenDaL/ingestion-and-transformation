@@ -1,0 +1,52 @@
+# Define one or more tests for each translator
+TitleTranslator:
+  - kwargs:
+      fields:
+      - title
+      - name
+      schema:
+        type: string
+        minLength: 5
+        maxLength: 256
+      dict_key_priority:
+      - title
+      - en
+      type_keys:
+      - type
+      type_priority:
+      - primary
+      - alternative
+    translate_function_tests:
+    # Test basic translation
+    - _structured:
+        title: "This is the title of the entry"
+      _translated:
+        title: "This is the title of the entry"
+    # Test field priority
+    - _structured:
+        name: "This is the name of the entry"
+        title: "This is the title of the entry"
+      _translated:
+        title: "This is the title of the entry"
+    # Test minimum length rejection
+    - _structured:
+        title: "N/A"
+      _translated: {}
+    # Test maximum length abbreviation
+    - _structured:
+        title: "This is a very long string that easy surpasses the maximum length that was set for a title. This should be shorted not to break the whole thing. That is because the length of this title is simply rediculous. Who makes titles this long? I don't think a sane person would make such a title"
+      _translated:
+        title: "This is a very long string that easy surpasses the maximum length that was set for a title. This should be shorted not to break the whole thing. That is because the length of this title is simply rediculous. Who makes titles this long? I don't think a san…"
+    # Test dict key and type priority
+    - _structured:
+        title:
+          - nonsensekey: nonsensevalue
+          - en: "First good entry"
+            title: "Not the preferred title"
+            type: "alternative"
+          - title: "The preferred title"
+            type: "primary"
+      _translated:
+        title: "The preferred title"
+
+          
