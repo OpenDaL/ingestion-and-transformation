@@ -93,14 +93,35 @@ class FieldTranslator(ABC):
 
         return False
 
-    @abstractmethod
-    def translate(metadata: ResourceMetadata, preparsed_data: dict = None):
+    def _process(self, payload):
         """
-        Translate the metadata, by using the contents of metadata.structured as
-        source, and storing the results in metadata.translated. Any data from
-        pre-parsers is passed as 'parsed_data'.
+        Default function to process a single entry. Each type of data is
+        delegated to the the specific processing function
         """
-        pass
+        if isinstance(payload, str):
+            return self._process_string(payload)
+        elif isinstance(payload, dict):
+            return self._process_dict(payload)
+        elif isinstance(payload, list):
+            return self._process_list(payload)
+
+    def translate(
+            self, metadata: ResourceMetadata, preparsed_data: dict = None
+            ):
+        """
+        Default translate function. It takes the result from the first field
+        that contains valid data.
+
+        Override this to change logic, or include logic for preparsed data
+        """
+        for field in self.fields:
+            if field not in metadata.structured:
+                continue
+            payload = metadata.structured[field]
+            result = self._process(payload)
+            if result is not None:
+                metadata.translated[self.field_name] = result
+                return
 
 
 class Preparser(ABC):
@@ -966,36 +987,24 @@ class TitleTranslator(StringTruncationMixin, FieldTranslator):
             # Nothing found
             return None
 
-    def _process(self, payload):
-        if isinstance(payload, str):
-            return self._process_string(payload)
-        elif isinstance(payload, dict):
-            return self._process_dict(payload)
-        elif isinstance(payload, list):
-            return self._process_list(payload)
 
-    def translate(self, metadata: ResourceMetadata, preparsed_data=None):
-        for field in self.fields:
-            if field not in metadata.structured:
-                continue
-            payload = metadata.structured[field]
-            result = self._process(payload)
-            if result is not None:
-                metadata.translated[self.field_name] = result
-
-            return
-
-
-def abstractORdescription(candidates):
+class DescriptionTranslator(StringTruncationMixin, FieldTranslator):
     """
-    Generate abstract or description from a dict of input key/value candidates
+    Field translator for an abstract or description
     """
-    rules = trl_rules['abstractORdescription']
+    field_name = 'description'
 
-    def handle_string(str_):
-        """
-        Convert a candidate string value to the correct description format
-        """
+    def __init__(
+            self, fields: list[str], *, schema: dict,
+            dict_key_priority: list[str], type_keys: list[str],
+            type_priority: list[str]
+            ):
+        super().__init__(fields, schema=schema)
+        self.dict_key_priority = dict_key_priority
+        self.type_keys = type_keys
+        self.type_priority = type_priority
+
+    def _process_string(self, str_):
         if str_.lower() in NONE_STRINGS or str_.lower() == 'description' or\
                 str_.lower() == 'abstract':
             return None
@@ -1003,16 +1012,9 @@ def abstractORdescription(candidates):
         desc = md_links_cregex.sub(r'\1', desc)
         desc = manylines_cregex.sub('\n\n', desc)
         desc = desc.strip()
-        desc = _aux.filter_truncate_string(desc,
-                                           rules['length']['min'],
-                                           rules['length']['max'])
+        return self.truncate_string(desc)
 
-        return desc
-
-    def handle_dict(dict_):
-        """
-        Convert a candidate dict value to the correct description format
-        """
+    def _process_dict(self, dict_):
         desc = None
         if 'PT_FreeText' in dict_:
             # For GMD format language alternatives
@@ -1020,34 +1022,31 @@ def abstractORdescription(candidates):
             if isinstance(language_options, list):
                 langval = _get_preferred_language_value(language_options)
                 if langval is not None:
-                    desc = handle_string(langval)
+                    desc = self._process_string(langval)
                     if desc is not None:
                         return desc
 
-        for key in rules['dict_key_priority']:
+        for key in self.dict_key_priority:
             value = dict_.pop(key, None)
             if value is not None and isinstance(value, str):
-                desc = handle_string(value)
+                desc = self._process_string(value)
                 if desc is not None:
                     break
         else:
             for key, value in dict_.items():
-                if key not in rules['dict_keys_type'] and\
+                if key not in self.type_keys and\
                         isinstance(value, str):
-                    desc = handle_string(value)
+                    desc = self._process_string(value)
                     if desc is not None:
                         break
 
         return desc
 
-    def handle_list(list_):
-        """"
-        Convert a candidate list value to the correct description format
-        """
+    def _process_list(self, list_):
         # First try to see of it's a list of language alternatives
         langval = _get_preferred_language_value(list_)
         if langval is not None:
-            desc = handle_string(langval)
+            desc = self._process_string(langval)
             if desc is not None:
                 return desc
 
@@ -1058,14 +1057,14 @@ def abstractORdescription(candidates):
             c_desc_prio = 99999
             c_desc = None
             if isinstance(item, str):
-                c_desc = handle_string(item)
+                c_desc = self._process_string(item)
             elif isinstance(item, dict):
-                c_desc = handle_dict(item)
+                c_desc = self._process_dict(item)
                 c_desc_type = _get_value(
-                    item, rules['dict_keys_type'], value_type=str
+                    item, self.type_keys, value_type=str
                 )
-                if c_desc_type in rules['type_priority']:
-                    c_desc_prio = rules['type_priority'].index(c_desc_type)
+                if c_desc_type in self.type_priority:
+                    c_desc_prio = self.type_priority.index(c_desc_type)
                     if c_desc is not None:
                         found_prio = True
 
@@ -1084,34 +1083,6 @@ def abstractORdescription(candidates):
         else:
             # Nothing found
             return None
-
-    def convert_description_data(candidate):
-        """
-        Convert the candidate to the correct description format
-        """
-        desc = None
-        if isinstance(candidate, str):
-            desc = handle_string(candidate)
-        elif isinstance(candidate, dict):
-            desc = handle_dict(candidate)
-        elif isinstance(candidate, list):
-            desc = handle_list(candidate)
-
-        return desc
-
-    desc = None
-    for ckey in rules['data_priority']:
-        candidate = candidates.pop(ckey, None)
-        desc = convert_description_data(candidate)
-        if desc is not None:
-            break
-    else:
-        for ckey, candidate in candidates.items():
-            desc = convert_description_data(candidate)
-            if desc is not None:
-                break
-
-    return desc
 
 
 def version(candidates):

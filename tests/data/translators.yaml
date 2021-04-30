@@ -28,6 +28,12 @@ TitleTranslator:
         title: "This is the title of the entry"
       _translated:
         title: "This is the title of the entry"
+    # If the highest priority field is there, but has no value, move to next
+    - _structured:
+        name: "This is the name of the entry"
+        title: null
+      _translated:
+        title: "This is the name of the entry"
     # Test minimum length rejection
     - _structured:
         title: "N/A"
@@ -49,4 +55,48 @@ TitleTranslator:
       _translated:
         title: "The preferred title"
 
-          
+DescriptionTranslator:
+  - kwargs:
+      fields:
+      - description
+      - abstract
+      - summary
+      schema:
+        type: string
+        minLength: 5
+        maxLength: 2048
+      dict_key_priority:
+      - _content
+      - data
+      type_keys:
+      - type
+      type_priority:
+      - full
+      - brief
+    translate_function_tests:
+      # Basic test
+      - _structured:
+          description: "This is a default description"
+        _translated:
+          description: "This is a default description"
+      # Test HTML
+      - _structured:
+          description: "<p>This is a default description</p>"
+        _translated:
+          description: "This is a default description"
+      # Test dictionary
+      - _structured:
+          description:
+            data: "This is the second in the chain"
+            _content: "This should be the main description"
+        _translated:
+          description: "This should be the main description"
+      # Test list with types
+      - _structured:
+          abstract:
+            - data: "This is the second in the chain"
+              type: "brief"
+            - data: "This should be the main description"
+              type: "full"
+        _translated:
+          description: "This should be the main description"
