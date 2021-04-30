@@ -11,6 +11,7 @@ import html
 import hashlib
 import copy
 from abc import ABC, abstractmethod
+from typing import Callable
 # # PERFORMANCE TESTING ########
 # import time
 # ##############################
@@ -123,6 +124,9 @@ class FieldTranslator(ABC):
         for field in self.fields:
             if field not in metadata.structured:
                 continue
+            # Instead of passing the current field between the processing
+            # functions, use a class variable.
+            self._current_field = field
             payload = metadata.structured[field]
             result = self._process(payload)
             if result is not None:
@@ -761,17 +765,51 @@ def _get_value(dict_, keys, value_type=None):
                 return dict_[key]
 
 
+def get_child_schema(schema: dict, key: str) -> dict:
+    """
+    Get the schema for the given child key from the complete schema
+    """
+    if schema['type'] == 'array':
+        # It's an array of objects
+        return schema['items']['properties'][key]
+    else:
+        # It's an object
+        return schema['properties'][key]
+
+
 class SchemaValidationMixin:
     """
     Mixin adds the .validate function to a class, based on the 'schema' kwargs
-    """
-    def __init__(self, *args, schema, **kwargs):
-        super().__init__(*args, **kwargs)
-        self._validate = fastjsonschema.compile(schema)
 
-    def is_valid(self, data):
+    Add. Arguments:
+        schema -- JSON Schema definition
+    """
+    def __init__(self, *args, schema: dict = None, **kwargs):
+        super().__init__(*args, **kwargs)
+        if schema is not None:
+            # If this is used in combination with the StringTruncationMixin,
+            # the schema variable may already have been set by that one
+            self._schema = schema
+        self._validate = fastjsonschema.compile(self._schema)
+
+        # Create a cache for subkey validation functions
+        self._subkey_validation_functions = {}
+
+    def _subkey_validator(self, subkey: str) -> Callable:
+        """Get the validation function for the given subkey"""
+        if subkey not in self._subkey_validation_functions:
+            self._subkey_validation_functions[subkey] = fastjsonschema.compile(
+                get_child_schema(self._schema, subkey)
+            )
+        return self._subkey_validation_functions[subkey]
+
+    def is_valid(self, data, subkey: str = None) -> bool:
+        if subkey is not None:
+            validate = self._subkey_validator(subkey)
+        else:
+            validate = self._validate
         try:
-            self._validate(data)
+            validate(data)
             return True
         except fastjsonschema.JsonSchemaException:
             return False
@@ -780,20 +818,45 @@ class SchemaValidationMixin:
 class StringTruncationMixin:
     """
     Mixin that adds the .truncate_string function, based on the schema
-    """
-    def __init__(self, *args, schema, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.min_str_length = schema.get('minLength', 0)
-        self.max_str_length = schema.get('maxLength', 9999999)
 
-    def truncate_string(self, str_):
+    Add. Arguments:
+        schema -- JSON Schema definition
+    """
+    def __init__(self, *args, schema: dict = None, **kwargs):
+        super().__init__(*args, **kwargs)
+        if schema is not None:
+            # If this is used in combination with the SchemaValidationMixin,
+            # the schema variable may already have been set by that one
+            self._schema = schema
+        self.min_str_length, self.max_str_length = self._get_min_max_length(
+            self._schema
+        )
+
+    def _get_min_max_length(self, schema):
+        """Return the min/max length values from the given schema"""
+        min_length = schema.get('minLength', 0)
+        max_length = schema.get('maxLength', 9999999)
+        return min_length, max_length
+
+    def truncate_string(self, str_, subkey: str = None):
         """
         Truncate or filter a string. If the length of the string is less than
         the minimum length, None is returned, if it's above the maximum length,
         a truncated version is returned
+
+        If a sub-key is given, that sub-key will be generated, rather than
+        using the 'minLength' and 'maxLength' properties at the root of the
+        schema
         """
+        if subkey is not None:
+            schema = get_child_schema(self._schema, subkey)
+            min_length, max_length = self._get_min_max_length(schema)
+        else:
+            min_length = self.min_str_length
+            max_length = self.max_str_length
+
         return _aux.filter_truncate_string(
-            str_, self.min_str_length, self.max_str_length
+            str_, min_length, max_length
         )
 
 
@@ -1116,107 +1179,56 @@ class VersionTranslator(SchemaValidationMixin, FieldTranslator):
                     return version_data
 
 
-def status(candidates):
-    """
-    Translate resource status information
-    """
-    raise NotImplementedError
+class CreatorTranslator(SchemaValidationMixin, FieldTranslator):
+    """Field translator for the 'creator' field"""
+    field_name = "creator"
 
-
-def creator(candidates):
-    """
-    Translate creator information
-    """
-    rules = trl_rules['creator']
-    creator = []
-
-    name_len_min = rules['children']['name']['length']['min']
-    name_len_max = rules['children']['name']['length']['max']
-
-    org_len_min = rules['children']['organization']['length']['min']
-    org_len_max = rules['children']['organization']['length']['max']
-
-    aff_len_min = rules['children']['affiliation']['length']['min']
-    aff_len_max = rules['children']['affiliation']['length']['max']
-
-    id_schemes = set(rules['children']['identifierScheme']['ctrl_vocab'])
-
-    def split_creators(candidate_value):
-        """
-        Splits the authors in case of multiple authors
-        """
-        if isinstance(candidate_value, str):
-            # For now, only split authors if the string contains multi & or ;
-            if candidate_value.count(';') > 1:
-                split_creators = candidate_value.split(';')
-            elif candidate_value.count('&') > 1:
-                split_creators = candidate_value.split('&')
-            else:
-                split_creators = [candidate_value]
-        elif isinstance(candidate_value, dict):
-            split_creators = [candidate_value]
+    def _split_creators(self, str_):
+        # For now, only split authors if the string contains multi & or ;
+        if str_.count(';') > 1:
+            return str_.split(';')
+        elif str_.count('&') > 1:
+            return str_.split('&')
         else:
-            split_creators = candidate_value
+            return [str_]
 
-        return split_creators
-
-    def convert_string(key, str_):
-        """
-        Check if the string is an organization or person, and if the string
-        meets the requirements.
-        """
-        if str_.lower() in NONE_STRINGS:
-            return None
-        elif email_adress_regex.match(str_):
-            return None
-        elif '{' in str_:
+    def _process_string(self, str_):
+        if str_.lower() in NONE_STRINGS or email_adress_regex.match(str_) or \
+                '{' in str_:
             return None
 
-        # First check if its a creator or organization:
-        creator_data = None
-        if key != 'organization':
+        if self._current_field == 'organization':
+            if self.is_valid(str_, 'organization'):
+                return [{'organization': str_}]
+            return
+
+        creator_strings = self._split_creators(str_)
+
+        creators = []
+        for c_str in creator_strings:
             # Treat data as a single person's name
-            if name_len_min <= len(str_) <= name_len_max and ' ' in str_:
-                # If last name comes first, reverse order
-                if str_.count(',') == 1:
-                    names = [s.strip() for s in str_.split(',')]
-                    last_name = names[0]
-                    first_name = names[1]
-                    if last_name.count(' ') <= 1:
-                        if first_name.count(' ') == 0:
-                            str_ = '{} {}'.format(first_name, last_name)
-                        elif first_name.count(' ') == 1 and\
-                                initials_regex.search(first_name):
-                            str_ = '{} {}'.format(first_name, last_name)
-                # If there is a number in brackets, remove it (for figshare)
-                str_ = bracketed_numbers_regex.sub('', str_).strip()
+            if not self.is_valid(c_str, 'name') or ' ' not in c_str:
+                return
 
-                creator_data = {
-                    'name': str_
-                }
-        else:
-            # Treat data as an organization name
-            if org_len_min <= len(str_) <= org_len_max:
-                creator_data = {
-                    'organization': str_
-                }
+            # If last name comes first, reverse order
+            if c_str.count(',') == 1:
+                names = [s.strip() for s in c_str.split(',')]
+                last_name = names[0]
+                first_name = names[1]
+                if last_name.count(' ') <= 1:
+                    if first_name.count(' ') == 0:
+                        c_str = '{} {}'.format(first_name, last_name)
+                    elif first_name.count(' ') == 1 and\
+                            initials_regex.search(first_name):
+                        c_str = '{} {}'.format(first_name, last_name)
+            # If there is a number in brackets, remove it (for figshare)
+            c_str = bracketed_numbers_regex.sub('', c_str).strip()
 
-        return creator_data
+            creators.append({'name': c_str})
 
-    def affiliation_from_string(str_):
-        """
-        Verify whether the input is a valid affiliation. If this is true, input
-        is returned, otherwise 'None' is returned.
-        """
-        if aff_len_min <= len(str_) <= aff_len_max:
-            return str_
-        else:
-            return None
+        return creators if creators != [] else None
 
-    def convert_dict(key, dict_):
-        """
-        Derive the relevant information from the dictionary data
-        """
+    def _process_dict(self, dict_):
         # Three cases: (1) name key, possibly with roles or type key (2) Name
         # (capital) key or Organisation with Role, (3) creatorName key,
         # possibly with affiliation and id data
@@ -1229,34 +1241,32 @@ def creator(candidates):
                 if isinstance(roles, list):
                     std_roles = [_INSPIRE_role2type(r) for r in roles]
                     if 'creator' in std_roles:
-                        base_data = convert_string('organization', name)
+                        self._current_field = 'organization'
+                        base_data = self._process_string(name)
                 elif isinstance(type, str):
                     if 'organization' in type.lower():
-                        base_data = convert_string('organization', name)
+                        self._current_field = 'organization'
+                        base_data = self._process_string(name)
                     else:
-                        base_data = convert_string('creator', name)
+                        base_data = self._process_string(name)
                 else:
-                    base_data = convert_string('creator', name)
+                    base_data = self._process_string(name)
 
-                if base_data is None:
-                    return None
-
-                if 'affiliation' in dict_:
+                if base_data is not None and 'affiliation' in dict_:
                     aff = dict_['affiliation']
-                    if isinstance(aff, str):
-                        affiliation = affiliation_from_string(aff)
-                        if affiliation is not None:
-                            base_data['affiliation'] = affiliation
+                    if self.is_valid(aff, subkey='affiliation'):
+                        for creator in base_data:
+                            creator['affiliation'] = aff
 
                 return base_data
 
         elif 'Name' in dict_ or 'Organisation' in dict_:
             if 'Name' in dict_:
                 name = dict_['Name']
-                ntype = 'creator'
+                self._current_field = 'creator'
             else:
                 name = dict_['Organisation']
-                ntype = 'organization'
+                self._current_field = 'organization'
 
             role = dict_.get('Role')
             if isinstance(role, str):
@@ -1265,7 +1275,7 @@ def creator(candidates):
                     return None
 
             if isinstance(name, str):
-                return convert_string(ntype, name)
+                return self._process_string(name)
 
         elif 'givenName' in dict_ and 'familyName' in dict_:
             name = dict_['givenName']
@@ -1273,17 +1283,16 @@ def creator(candidates):
             if not (isinstance(name, str) and isinstance(fname, str)):
                 return None
 
-            base_data = convert_string('creator', f"{name} {fname}")
+            base_data = self._process_string(f"{name} {fname}")
 
             if base_data is None:
                 return None
 
             if 'affiliation' in dict_:
                 aff = dict_['affiliation']
-                if isinstance(aff, str):
-                    affiliation = affiliation_from_string(aff)
-                    if affiliation is not None:
-                        base_data['affiliation'] = affiliation
+                if self.is_valid(aff, subkey='affiliation'):
+                    for creator in base_data:
+                        creator['affiliation'] = aff
 
             return base_data
 
@@ -1294,10 +1303,7 @@ def creator(candidates):
                 name = dict_['authorName']
             base_data = None
             if isinstance(name, str):
-                if name.count(',') == 1:
-                    last_first = name.split(',')
-                    name = ' '.join([n.strip() for n in reversed(last_first)])
-                base_data = convert_string('creator', name)
+                base_data = self._process_string(name)
 
             if base_data is None:
                 return None
@@ -1307,10 +1313,10 @@ def creator(candidates):
                 aff = dict_['affiliation']
             elif 'authorAffiliation' in dict_:
                 aff = dict_['authorAffiliation']
-            if isinstance(aff, str):
-                affiliation = affiliation_from_string(aff)
-                if affiliation is not None:
-                    base_data['affiliation'] = affiliation
+
+            if self.is_valid(aff, subkey='affiliation'):
+                for creator in base_data:
+                    creator['affiliation'] = aff
 
             if 'nameIdentifier' in dict_:
                 id_data = dict_['nameIdentifier']
@@ -1318,44 +1324,39 @@ def creator(candidates):
                     # Check completeness:
                     identifier_scheme = None
                     id_scheme = id_data.get('nameIdentifierScheme')
-                    if isinstance(id_scheme, str) and id_scheme in id_schemes:
+                    if self.is_valid(id_scheme, subkey='identifierScheme'):
                         identifier_scheme = id_scheme
-
-                    if identifier_scheme is not None:
                         idfr = id_data.get(st.REP_TEXTKEY)
-                        if isinstance(idfr, str) and\
-                                orchid_isni_regex.match(idfr):
+                        if self.is_valid(idfr, subkey='identifier'):
                             identifier = idfr.replace('-', '')
-                            base_data['identifierScheme'] = identifier_scheme
-                            base_data['identifier'] = identifier
+                            base_data[0]['identifierScheme'] = \
+                                identifier_scheme
+                            base_data[0]['identifier'] = identifier
 
             return base_data
 
         return None
 
-    # First try to get author information:
-    for key in rules['data_priority']:
-        if key in candidates:
-            creator = []
-            value = candidates[key]
-            creator_data_list = split_creators(value)
-            for creator_data in creator_data_list:
-                if isinstance(creator_data, str):
-                    entry_data = convert_string(key, creator_data)
-                elif isinstance(creator_data, dict):
-                    entry_data = convert_dict(key, creator_data)
+    def _process_list(self, list_):
+        creators = []
+        for item in list_:
+            if isinstance(item, str):
+                result = self._process_string(item)
+            elif isinstance(item, dict):
+                result = self._process_dict(item)
+            else:
+                continue
 
-                if entry_data is not None:
-                    creator.append(entry_data)
-            if len(creator) > 0:
-                break
-    else:
-        return None
+            if result is not None:
+                creators.extend(result)
+        return creators if creators != [] else None
 
-    if len(creator) > rules['length']['max']:
-        creator = creator[:rules['length']['max']]
-
-    return creator
+    def _process(self, payload):
+        result = super()._process(payload)
+        if result is not None and len(result) <= self._schema['maxLength']:
+            return result
+        else:
+            return None
 
 
 def publisher(candidates):

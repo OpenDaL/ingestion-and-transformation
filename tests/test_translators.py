@@ -33,4 +33,5 @@ def test_translators():
                 metadata = resource.ResourceMetadata({}, '')
                 metadata.structured = test['_structured']
                 translator.translate(metadata)
-                compare_output(metadata.translated, test['_translated'])
+                compare_output(
+                    metadata.translated, test['_translated'], all_fields=True)

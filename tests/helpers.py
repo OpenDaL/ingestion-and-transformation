@@ -43,7 +43,7 @@ def compare_output(
     )
     if all_fields:
         assert len(actual) == len(reference)
-        if actual == reference:  # If quick test failse, below logic is needed
+        if actual == reference:  # If quick test fails, below logic is needed
             return
 
     for key, reference_value in reference.items():

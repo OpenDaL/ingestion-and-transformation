@@ -129,3 +129,85 @@ VersionTranslator:
       - _structured:
           version: "This version string is way too long"
         _translated: {}
+
+CreatorTranslator:
+  - kwargs:
+      fields:
+      - creator
+      - author
+      - organization
+      schema:
+        type: array
+        maxLength: 32
+        items:
+          type: object
+          properties:
+            name:
+              type: string
+              minLength: 3
+              maxLength: 128
+            affiliation:
+              type: string
+              minLength: 3
+              maxLength: 256
+            identifier:
+              type: string
+              minLength: 8
+              maxLength: 1024
+            identifierScheme:
+              type: string
+              enum:
+              - ORCID
+              - ISNI
+              - ResearcherID
+              - URL
+            organization:
+              type: string
+              minLength: 3
+              maxLength: 128
+    translate_function_tests:
+      # Basic test, with reversed last and front name
+      - _structured:
+          author: Brouwer, Tom
+        _translated:
+          creator:
+            - name: Tom Brouwer
+      # Dict with organisation data
+      - _structured:
+          creator:
+            Organisation: RandomOrganisation
+        _translated:
+          creator:
+            - organization: RandomOrganisation
+      # Test priority
+      - _structured:
+          author: 'Dont use this'
+          creator: 'Use this instead'
+        _translated:
+          creator:
+            - name: 'Use this instead'
+      # Test givenName, familyName and affiliation
+      - _structured:
+          creator:
+            givenName: Tom
+            familyName: Brouwer
+            affiliation: randomAffiliation
+        _translated:
+          creator:
+            - name: Tom Brouwer
+              affiliation: randomAffiliation
+      # Test List
+      - _structured:
+          author:
+            - First Person
+            - Second Person
+            - Organisation: An Organisation
+        _translated:
+          creator:
+            - name: First Person
+            - name: Second Person
+            - organization: An Organisation
+      # Test name too short
+      - _structured:
+          author: Fo
+        _translated: {}

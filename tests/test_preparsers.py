@@ -34,4 +34,4 @@ def test_preparsers():
                 metadata.structured = test['_structured_before']
                 return_data = preparser.preparse(metadata)
                 compare_output(metadata.structured, test['_structured_after'])
-                compare_output(return_data, test['_return'])
+                compare_output(return_data, test['_return'], all_fields=True)
