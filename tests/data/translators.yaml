@@ -100,3 +100,32 @@ DescriptionTranslator:
               type: "full"
         _translated:
           description: "This should be the main description"
+
+VersionTranslator:
+  - kwargs:
+      fields:
+      - version
+      schema:
+        type: object
+        additionalProperties: false
+        required:
+          - value
+        properties:
+          value:
+            type: string
+            maxLength: 16
+          notes:
+            type: string
+            minLength: 4
+            maxLength: 2048
+    translate_function_tests:
+      # Basic test for version data
+      - _structured:
+          version: "v1.6.0"
+        _translated:
+          version:
+            value: "v1.6.0"
+      # Should be rejected because version string is too long
+      - _structured:
+          version: "This version string is way too long"
+        _translated: {}

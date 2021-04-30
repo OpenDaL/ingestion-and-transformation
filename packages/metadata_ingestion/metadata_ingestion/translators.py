@@ -57,6 +57,12 @@ class FieldTranslator(ABC):
     """
     dependencies = []
 
+    @property
+    def field_name(self):
+        raise NotImplementedError(
+            'A field_name was not defined for this translator'
+        )
+
     def __init__(self, fields, **kwargs):
         if self.has_circular_dependencies():
             raise TypeError(
@@ -761,7 +767,14 @@ class SchemaValidationMixin:
     """
     def __init__(self, *args, schema, **kwargs):
         super().__init__(*args, **kwargs)
-        self.validate = fastjsonschema.compile(schema)
+        self._validate = fastjsonschema.compile(schema)
+
+    def is_valid(self, data):
+        try:
+            self._validate(data)
+            return True
+        except fastjsonschema.JsonSchemaException:
+            return False
 
 
 class StringTruncationMixin:
@@ -1085,41 +1098,22 @@ class DescriptionTranslator(StringTruncationMixin, FieldTranslator):
             return None
 
 
-def version(candidates):
-    """
-    Translate version information based on the given candidate key/value
-    combinations
+class VersionTranslator(SchemaValidationMixin, FieldTranslator):
+    """Field Translator for version data"""
+    field_name = "version"
 
-    Note: Sub-key 'notes' not yet implemented, given lack of occurence
-    """
-    version = {}
-    rules = trl_rules['version']
-
-    def convert_version_value(candidates):
+    def _process(self, payload):
         """
-        Convert given candidates to version_value, and remove item used to
-        determine it
+        Currently this only supports string values, and mapping them to the
+        'value' property
         """
-        value = None
-        sub_rules = rules['children']['value']
-        max_lenght = sub_rules['length']['max']
-        for key in sub_rules['data_priority']:
-            if key in candidates:
-                data = candidates[key]
-                if isinstance(data, str) and data.lower() not in NONE_STRINGS\
-                        and len(data) <= max_lenght:
-                    value = data
-                    break
-
-        return value
-
-    version_value = convert_version_value(candidates)
-    if version_value is not None:
-        version['value'] = version_value
-
-    version = version if version != {} else None
-
-    return version
+        if isinstance(payload, str):
+            if payload.lower() not in NONE_STRINGS:
+                version_data = {
+                    'value': payload
+                }
+                if self.is_valid(version_data):
+                    return version_data
 
 
 def status(candidates):
