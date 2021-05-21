@@ -1359,73 +1359,56 @@ class CreatorTranslator(SchemaValidationMixin, FieldTranslator):
             return None
 
 
-def publisher(candidates):
-    """
-    Translates publisher data into the new metadata format
-    """
-    rules = trl_rules['publisher']
-    data_priority = rules['data_priority']
+class PublisherTranslator(SchemaValidationMixin, FieldTranslator):
+    """Field Translator for the publisher field"""
+    field_name = 'publisher'
 
-    name_key_priority = rules['children']['name']['dict_key_priority']
-    n_len_min = rules['children']['name']['length']['min']
-    n_len_max = rules['children']['name']['length']['max']
+    def __init__(
+            self, fields: list[str], *, schema: dict,
+            dict_key_priority: list[str], url_keys: list[str]
+            ):
+        super().__init__(fields, schema=schema)
+        self.dict_key_priority = dict_key_priority
+        self.url_keys = url_keys
 
-    id_key_priority = rules['children']['identifier']['url_dict_keys']
-    id_len_min = rules['children']['identifier']['length']['min']
-    id_len_max = rules['children']['identifier']['length']['max']
-
-    def process_name_string(str_):
-        """
-        Process a name string to check validity
-        """
-        data = None
-        if n_len_min <= len(str_) <= n_len_max and\
-                str_.lower() not in NONE_STRINGS and\
-                email_adress_regex.match(str_) is None\
-                and url_regex.match(str_) is None:
+    def _process_string(self, str_) -> dict:
+        str_ = str_.strip()
+        if self.is_valid(str_, subkey='name') and str_ not in NONE_STRINGS \
+                and not email_adress_regex.match(str_) \
+                and not url_regex.match(str_):
             for string_start in IGNORE_STARTSWITH:
                 if str_.lower().startswith(string_start):
                     break
             else:
-                data = str_.strip()
+                return {'name': str_}
 
-        return data
-
-    def convert_string(key, str_):
-        """
-        Converts string data to the publisher data scheme
-        """
-        name = process_name_string(str_)
-        if name is not None:
-            return {'name': name}
-        else:
-            return None
-
-    def convert_dict(key, dict_):
-        """
-        Converts dict data to the publisher data scheme
-        """
+    def _process_dict(self, dict_) -> dict:
         pub = None
-
-        for key in name_key_priority:
-            data = dict_.get(key)
+        for key in self.dict_key_priority:
+            if key not in dict_:
+                continue
+            
+            data = dict_[key]
             if isinstance(data, str):
-                name = process_name_string(data)
-                if name:
-                    pub = {'name': name}
+                result = self._process_string(data)
+                if result:
+                    pub = result
                     break
             elif isinstance(data, dict) and 'en' in data:
-                name = process_name_string(data['en'])
-                if name:
-                    pub = {'name': name}
+                result = self._process_string(data['en'])
+                if result:
+                    pub = result
                     break
 
         if pub is not None:
-            for key in id_key_priority:
-                data = dict_.get(key)
+            for key in self.url_keys:
+                if key not in dict_:
+                    continue
+                
+                data = dict_[key]
                 if isinstance(data, str):
                     is_url = url_regex.match(data)
-                    if is_url and id_len_min <= len(data) <= id_len_max:
+                    if is_url and self.is_valid(data, subkey='identifier'):
                         pub['identifier'] = data
                         pub['identifierType'] = 'URL'
             if 'role' in dict_ and isinstance(dict_['role'], str):
@@ -1441,14 +1424,11 @@ def publisher(candidates):
 
         return pub
 
-    def convert_list(key, list_):
-        """
-        Converts list data to the publisher data scheme
-        """
+    def _process_list(self, list_):
         # First try to see of it's a list of language alternatives
         langval = _get_preferred_language_value(list_)
         if langval is not None:
-            data = convert_string(None, langval)  # Pass dummy for 'key'
+            data = self._process_string(langval)  # Pass dummy for 'key'
             if data is not None:
                 return data
 
@@ -1456,29 +1436,13 @@ def publisher(candidates):
         data = None
         for item in list_:
             if isinstance(item, dict):
-                data = convert_dict(key, item)
+                data = self._process_dict(item)
             elif isinstance(item, str):
-                data = convert_string(key, item)
+                data = self._process_string(item)
             if data is not None:
                 break
 
         return data
-
-    for key in data_priority:
-        if key in candidates:
-            value = candidates[key]
-
-            if isinstance(value, str):
-                data = convert_string(key, value)
-            elif isinstance(value, dict):
-                data = convert_dict(key, value)
-            elif isinstance(value, list):
-                data = convert_list(key, value)
-
-            if data is not None:
-                break
-
-    return data
 
 
 def published_in(candidates):

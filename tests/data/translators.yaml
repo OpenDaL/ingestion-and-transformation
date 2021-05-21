@@ -211,3 +211,62 @@ CreatorTranslator:
       - _structured:
           author: Fo
         _translated: {}
+
+PublisherTranslator:
+  - kwargs:
+      fields:
+      - publisher
+      - publishers
+      schema:
+        type: object
+        additionalProperties: false
+        required:
+          - name
+        properties:
+          name:
+            type: string
+            minLength: 3
+            maxLength: 128
+          identifier:
+            type: string
+            minLength: 13
+            maxLength: 1024
+      dict_key_priority:
+        - name
+        - publisherName
+      url_keys:
+        - homepage
+    translate_function_tests:
+      # Basic test
+      - _structured:
+          publisher: Harry
+        _translated:
+          publisher:
+            name: Harry
+      # Test with a list of dicts
+      - _structured:
+          publishers:
+            - this: should not be used
+            - this: should be used
+              name: correct publisher
+        _translated:
+          publisher:
+            name: correct publisher
+      # Test is a URL is used as identifier
+      - _structured:
+          publisher:
+            publisherName: publishername
+            homepage: https://publishername.com/
+        _translated:
+          publisher:
+            name: publishername
+            identifierType: URL
+            identifier: https://publishername.com/
+      # If the idenfier is not valid, don't add it
+      - _structured:
+          publisher:
+            publisherName: publishername
+            homepage: https://s.c/
+        _translated:
+          publisher:
+            name: publishername
