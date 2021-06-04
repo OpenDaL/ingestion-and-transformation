@@ -270,3 +270,88 @@ PublisherTranslator:
         _translated:
           publisher:
             name: publishername
+IssuedDateTranslator:
+  - kwargs:
+      fields:
+      - issued
+      - dcat_issued
+      lt: now
+      gt: 1700-01-01T00:00:00Z
+    translate_function_tests:
+      # Basic test
+      - _structured:
+          issued: September 6 2020
+        _translated:
+          issued: '2020-09-06'
+      # Test if it takes the lowest
+      - _structured:
+          issued:
+            _content: September 6 2020
+          dcat_issued: '13-06-2019'
+        _translated:
+          issued: '2019-06-13'
+      # Test inaccurate date that is earlier. This should not be chosen
+      - _structured:
+          issued:
+            _content: '2019'
+          dcat_issued: '13-06-2019'
+        _translated:
+          issued: '2019-06-13'
+      # Inaccurate dates should only be chosen, if other option is not availabe
+      - _structured:
+          issued:
+            _content: '2019'
+          dcat_issued: 'henk'
+        _translated:
+          issued: '2019-01-01'
+ModifiedDateTranslator:
+  - kwargs:
+      fields:
+        - modified
+        - date_modified
+      lt: now
+      gt: 1700-01-01T00:00:00Z
+    translate_function_tests:
+      # Since this also inherits from DateTranslator, only test that it
+      # prefers the oldest date
+      # Test if it takes the highest
+      - _structured:
+          modified:
+            _content: September 6 2020
+          date_modified: '13-06-2019'
+        _translated:
+          modified: '2020-09-06'
+CreatedDateTranslator:
+  - kwargs:
+      fields:
+        - created
+        - createdAt
+      lt: now
+      gt: 1700-01-01T00:00:00Z
+    translate_function_tests:
+      # Basic test
+      - _structured:
+          created: September 6 2020
+        _translated:
+          created: '2020-09-06'
+      # Test if it takes the lowest
+      - _structured:
+          created:
+            _content: September 6 2020
+          createdAt: '13-06-2019'
+        _translated:
+          created: '2019-06-13'
+      # Test inaccurate date that is earlier. This should not be chosen
+      - _structured:
+          created:
+            _content: '2019'
+          createdAt: '13-06-2019'
+        _translated:
+          created: '2019-06-13'
+      # Inaccurate dates should only be chosen, if other option is not availabe
+      - _structured:
+          createdAt:
+            _content: '2019'
+          created: 'henk'
+        _translated:
+          created: '2019-01-01'

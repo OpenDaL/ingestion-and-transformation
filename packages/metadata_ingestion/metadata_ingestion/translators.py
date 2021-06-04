@@ -11,7 +11,7 @@ import html
 import hashlib
 import copy
 from abc import ABC, abstractmethod
-from typing import Callable
+from typing import Callable, Union
 # # PERFORMANCE TESTING ########
 # import time
 # ##############################
@@ -1445,327 +1445,128 @@ class PublisherTranslator(SchemaValidationMixin, FieldTranslator):
         return data
 
 
-def published_in(candidates):
+class DateTranslator(FieldTranslator):
     """
-    Convert journal/book information to the new metadata schema
+    Base class for date translators
+
+    Additional arguments:
+        lt -- Detected dates should be lower than this (Either the string
+        'now' or a datetime object)
+
+        gt -- Detected dates should be greater than this (Either the string
+        'now' or a datetime object)
+
+        favor_earliest -- If True, it tries to extract the earliest date from
+        the data, if False (default), if tries to extract the latest date
     """
-    data = None
-    rules = trl_rules['publishedIn']
-    data_priority = rules['data_priority']
+    def __init__(
+            self, fields: list[str], *, lt: Union[str, datetime.datetime],
+            gt: Union[str, datetime.datetime], favor_earliest: bool = False
+            ):
+        super().__init__(fields)
+        self.lt = _parse_date_requirement(lt)
+        self.gt = _parse_date_requirement(gt)
+        self.favor_earliest = favor_earliest
 
-    name_contains = rules['children']['name']['contains']
-    name_minlen = rules['children']['name']['length']['min']
-    name_maxlen = rules['children']['name']['length']['max']
+    def _process_string(self, str_):
+        return _convert_date_string(str_, self.lt, self.gt)
 
-    vol_gt = rules['children']['volume']['gt']
-    vol_lt = rules['children']['volume']['lt']
+    def _process_int(self, int_):
+        dt = _parse_timestamp(int_, self.lt, self.gt)
+        if dt is not None:
+            return dt.strftime(st.DATE_FORMAT)
 
-    issue_gt = rules['children']['issue']['gt']
-    issue_lt = rules['children']['issue']['lt']
+    def _get_dict_payload_str(self, dict_):
+        if st.REP_TEXTKEY in dict_:
+            payload = dict_[st.REP_TEXTKEY]
+            if isinstance(payload, str):
+                return payload
 
-    def validate_entry(entry):
+    def _get_list_payload_str(self, list_):
+        if len(list_) > 0:
+            # As a simplification, only the first item is checked
+            payload = list_[0]
+            if isinstance(payload, str):
+                return payload
+
+    def _process(self, payload):
         """
-        Validates and cleans an entry (converts list used for 'pages')
+        This intermediate step is not used by this translator
         """
-        # Validate name:
-        if not ('name' in entry and entry['name'].lower() not in NONE_STRINGS
-                and name_minlen <= len(entry['name']) <= name_maxlen):
-            return False
+        pass
 
-        if 'volume' in entry:
-            if not vol_gt <= entry['volume'] <= vol_lt:
-                entry.pop('volume')
-
-        if 'issue' in entry:
-            if not issue_gt <= entry['issue'] <= issue_lt:
-                entry.pop('issue')
-
-        if 'pages' in entry:
-            pages = entry['pages']
-            if pages[1] > pages[0]:
-                entry['pages'] = '{}-{}'.format(pages[0], pages[1])
-            else:
-                entry.pop('pages')
-
-        return True
-
-    def convert_standardised_data_string(str_):
+    def translate(self, metadata: ResourceMetadata, **kwargs):
         """
-        Converts a standardised string with TITLE=, VOLUME= etc. to the correct
-        format
+        Note that this skips the _process function, since some tests on the
+        data itself need to be performed at this level
         """
-        # Detect title:
-        title_match = title_data_regex.search(str_)
-        if title_match is not None:
-            data = {'name': title_match.group(1)}
-        else:
-            return None
-
-        volume_match = volume_data_regex.search(str_)
-        if volume_match is not None:
-            data['volume'] = int(volume_match.group(1))
-
-        issue_match = issue_data_regex.search(str_)
-        if issue_match is not None:
-            data['issue'] = int(issue_match.group(1))
-
-        frompage_match = frompage_data_regex.search(str_)
-        untilpage_match = untilpage_data_regex.search(str_)
-        if frompage_match is not None and untilpage_match is not None:
-            data['pages'] = [int(frompage_match.group(1)),
-                             int(untilpage_match.group(1))]
-
-        issn_match = issn_data_regex.search(str_)
-        if issn_match is not None:
-            data['identifier'] = issn_match.group(1)
-            data['identifierType'] = 'ISSN'
-
-        return data
-
-    def convert_journal_info_string(str_):
-        """
-        Convert a string with journal information
-        """
-        splitted = [s.strip() for s in
-                    re.split(r",|\:(?=\s)|\;|'|\s(?=\()", str_)]
-        name_detected = False
-        added = set()
-        data = {}
-        dist_from_name = 0
-        for splitted_text in splitted:
-            if name_detected:
-                dist_from_name += 1
-                if dist_from_name > 5:
-                    break
-                # Detect volume:
-                if 'volume' not in added:
-                    vol_match = journal_volume_regex.match(
-                        splitted_text.lower()
-                    )
-                    if vol_match:
-                        vol = int(vol_match.group(1))
-                        data['volume'] = vol
-                        added.add('volume')
-                if 'issue' not in added:
-                    issue_match = journal_issue_regex.match(
-                        splitted_text.lower()
-                    )
-                    if issue_match:
-                        issue = int(issue_match.group(1))
-                        data['issue'] = issue
-                        added.add('issue')
-                if 'pages' not in added:
-                    pages_match = journal_pages_regex.match(
-                        splitted_text.lower()
-                    )
-                    if pages_match:
-                        from_ = int(pages_match.group(2))
-                        until = int(pages_match.group(3))
-                        pages = [from_, until]
-                        data['pages'] = pages
-                        added.add('pages')
-                if 'issn' not in added and\
-                        'issn' in splitted_text.lower():
-                    issn_match = journal_issn_end_regex.match(
-                        splitted_text.lower()
-                    )
-                    if issn_match is not None:
-                        data['identifier'] = issn_match.group(1)
-                        data['identifierType'] = 'ISSN'
-                        added.add('issn')
-
-            else:
-                for word in name_contains:
-                    if word in splitted_text.lower():
-                        data = {
-                            'name': splitted_text,
-                            'type': 'journal'
-                        }
-                        name_detected = True
-                        break
-        if name_detected:
-            return data
-        else:
-            return None
-
-    def convert_list(list_):
-        "Retrieve journal/book information from"
-        candidates = []
-        for item in list_:
-            if isinstance(item, str):
-                if 'TITLE=' in item:
-                    dat = convert_standardised_data_string(item)
-                else:
-                    dat = convert_journal_info_string(item)
-
-                if dat is not None and validate_entry(dat):
-                    candidates.append(dat)
-
-        best = None
-        if len(candidates) > 0:
-            candidate_lens = [len(c) for c in candidates]
-            max_len = max(candidate_lens)
-            ind_ = candidate_lens.index(max_len)
-
-            best = candidates[ind_]
-
-        return best
-
-    for key in data_priority:
-        if key in candidates:
-            dat = candidates[key]
-            if isinstance(dat, list):
-                data = convert_list(dat)
-                if data is not None:
-                    break
-
-    return data
-
-
-def issued(candidates):
-    """
-    Convert issued date information to the new metadata schema
-    """
-    rules = trl_rules['issued']
-    lt = _parse_date_requirement(rules['lt'])
-    gt = rules['gt']
-
-    date = None
-    provisional = None
-    for key in candidates:
-        new_date = None
-        data = candidates[key]
-        if isinstance(data, str):
-            new_date = _convert_date_string(data, lt, gt)
-            if len(data) == 4 and year_regex.match(data) and\
-                    new_date is not None:
-                provisional = new_date  # since this will always be lower...
+        date = None
+        inaccurate_date = None
+        for field in self.fields:
+            if field not in metadata.structured:
                 continue
-        elif isinstance(data, datetime.datetime):
-            new_date = data.strftime(st.DATE_FORMAT)
-        elif isinstance(data, int):
-            dt = _parse_timestamp(data, lt, gt)
-            if dt is not None:
-                new_date = dt.strftime(st.DATE_FORMAT)
-        elif isinstance(data, dict):
-            if st.REP_TEXTKEY in data:
-                payload = data[st.REP_TEXTKEY]
-                if isinstance(payload, str):
-                    new_date = _convert_date_string(payload, lt, gt)
-                    if len(payload) == 4 and year_regex.match(payload) and\
-                            new_date is not None:
-                        provisional = new_date
+
+            payload = metadata.structured[field]
+            if isinstance(payload, (str, dict, list)):
+                if isinstance(payload, dict):
+                    payload = self._get_dict_payload_str(payload)
+                    if payload is None:
                         continue
-        else:
-            continue
-        if new_date is not None:
-            if date is not None:
-                if new_date < date:
-                    date = new_date
-            else:
-                date = new_date
-
-    if date is None and provisional is not None:
-        date = provisional
-
-    return date
-
-
-def modified(candidates):
-    """
-    Convert modified date information to the new metadata schema
-    """
-    rules = trl_rules['modified']
-    lt = _parse_date_requirement(rules['lt'])
-    gt = rules['gt']
-
-    date = None
-    for key in candidates:
-        new_date = None
-        data = candidates[key]
-        if isinstance(data, str):
-            new_date = _convert_date_string(data, lt, gt)
-        elif isinstance(data, datetime.datetime):
-            new_date = data.strftime(st.DATE_FORMAT)
-        elif isinstance(data, int):
-            dt = _parse_timestamp(data, lt, gt)
-            if dt is not None:
-                new_date = dt.strftime(st.DATE_FORMAT)
-        elif isinstance(data, dict):
-            if st.REP_TEXTKEY in data:
-                payload = data[st.REP_TEXTKEY]
-                if isinstance(payload, str):
-                    new_date = _convert_date_string(payload, lt, gt)
-        else:
-            continue
-        if new_date is not None:
-            if date is not None:
-                if new_date > date:
-                    date = new_date
-            else:
-                date = new_date
-
-    return date
-
-
-def created(candidates):
-    """
-    Convert created date information to the new metadata schema
-    """
-    rules = trl_rules['created']
-    lt = _parse_date_requirement(rules['lt'])
-    gt = rules['gt']
-
-    date = None
-    new_date = None
-    provisional = None
-    for key in candidates:
-        data = candidates[key]
-        if isinstance(data, str):
-            new_date = _convert_date_string(data, lt, gt)
-            if len(data) == 4 and year_regex.match(data) and\
-                    new_date is not None:
-                provisional = new_date  # since this will always be lower...
-                continue
-        elif isinstance(data, datetime.datetime):
-            new_date = data.strftime(st.DATE_FORMAT)
-        elif isinstance(data, int):
-            dt = _parse_timestamp(data, lt, gt)
-            if dt is not None:
-                new_date = dt.strftime(st.DATE_FORMAT)
-        elif isinstance(data, list) and len(data) > 0:
-            # As an approximation, just use the first entry
-            str_ = data[0]
-            if isinstance(str_, str):
-                new_date = _convert_date_string(str_, lt, gt)
-                if len(str_) == 4 and year_regex.match(str_) and\
-                        new_date is not None:
-                    provisional = new_date  # since this will always be lower...
+                elif isinstance(payload, list):
+                    payload = self._get_list_payload_str(payload)
+                    if payload is None:
+                        continue
+                new_date = self._process_string(payload)
+                if new_date is not None and len(payload) == 4 and\
+                        year_regex.match(payload):
+                    inaccurate_date = new_date
                     continue
+            elif isinstance(payload, int):
+                dt = _parse_timestamp(payload, self.lt, self.gt)
+                if dt is not None:
+                    new_date = dt.strftime(st.DATE_FORMAT)
+            elif isinstance(payload, datetime.datetime):
+                new_date = payload.strftime(st.DATE_FORMAT)
             else:
                 continue
-        elif isinstance(data, dict):
-            if st.REP_TEXTKEY in data:
-                payload = data[st.REP_TEXTKEY]
-                if isinstance(payload, str):
-                    new_date = _convert_date_string(payload, lt, gt)
-                    if len(payload) == 4 and year_regex.match(payload) and\
-                            new_date is not None:
-                        provisional = new_date  # since this will always be lower...
-                        continue
-        else:
-            continue
-        if new_date is not None:
-            if date is not None:
-                if new_date < date:
+
+            if new_date is not None:
+                if date is not None:
+                    if self.favor_earliest and new_date < date or\
+                            (not self.favor_earliest) and new_date > date:
+                        date = new_date
+                else:
                     date = new_date
-            else:
-                date = new_date
 
-    if date is None and provisional is not None:
-        date = provisional
+        if date is None and inaccurate_date is not None:
+            date = inaccurate_date
 
-    return date
+        if date is not None:
+            metadata.translated[self.field_name] = date
+
+
+class IssuedDateTranslator(DateTranslator):
+    """Translator for the issued field"""
+    field_name = 'issued'
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, favor_earliest=True, **kwargs)
+
+
+class ModifiedDateTranslator(DateTranslator):
+    """Translator for the modified field"""
+    field_name = 'modified'
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, favor_earliest=False, **kwargs)
+
+
+class CreatedDateTranslator(DateTranslator):
+    """Translator for the modified field"""
+    field_name = 'created'
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, favor_earliest=True, **kwargs)
 
 
 def other_dates(candidates):
