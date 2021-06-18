@@ -447,3 +447,72 @@ ContactTranslator:
             - name: Correct name
               details: '10 Marshwood lane, Ohio'
               detailsType: Address
+LicenseTranslator:
+  - kwargs:
+      fields:
+      - license_title
+      - license
+      - license_url
+      dict_key_mapping:
+        url: url
+        text: text
+      schema:
+        type: object
+        additionalProperties: false
+        properties:
+          name:
+            type: string
+            minLength: 3
+            maxLength: 128
+          content:
+            type: string
+            minLength: 8
+            maxLength: 2048
+      name_starts:
+        - cc-
+        - cc0-
+    translate_function_tests:
+      # Basic test
+      - _structured:
+          license: cc-thebest
+        _translated:
+          license:
+            name: cc-thebest
+      # Name and URL, should prefer The URL over the long description
+      - _structured:
+          license:
+            This is a very long description of this license. It's rediculous to
+            spend this much text on a license description. It's way better to
+            just include the URL instead!
+          license_title: Best License ever!
+          license_url: https://best.license.ever/
+        _translated:
+          license:
+            name: Best License ever!
+            content: https://best.license.ever/
+            type: URL
+      # Use content as text, if nothing else is availble
+      - _structured:
+          license:
+            This is a very long description of this license. It's rediculous to
+            spend this much text on a license description. It's way better to
+            just include the URL instead!
+          license_title: Best License ever!
+        _translated:
+          license:
+            name: Best License ever!
+            content:
+              This is a very long description of this license. It's rediculous to
+              spend this much text on a license description. It's way better to
+              just include the URL instead!
+            type: Text
+      # Derive from multiple dicts in a list
+      - _structured:
+          license:
+            - text: This is the title of the license
+            - url: https://best.license.ever/
+        _translated:
+          license:
+            name: This is the title of the license
+            content: https://best.license.ever/
+            type: URL

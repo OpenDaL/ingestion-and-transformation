@@ -785,11 +785,11 @@ class SchemaValidationMixin:
         schema -- JSON Schema definition
     """
     def __init__(self, *args, schema: dict = None, **kwargs):
-        super().__init__(*args, **kwargs)
         if schema is not None:
             # If this is used in combination with the StringTruncationMixin,
             # the schema variable may already have been set by that one
             self._schema = schema
+        super().__init__(*args, **kwargs)
         self._validate = fastjsonschema.compile(self._schema)
 
         # Create a cache for subkey validation functions
@@ -823,11 +823,11 @@ class StringTruncationMixin:
         schema -- JSON Schema definition
     """
     def __init__(self, *args, schema: dict = None, **kwargs):
-        super().__init__(*args, **kwargs)
         if schema is not None:
             # If this is used in combination with the SchemaValidationMixin,
             # the schema variable may already have been set by that one
             self._schema = schema
+        super().__init__(*args, **kwargs)
         self.min_str_length, self.max_str_length = self._get_min_max_length(
             self._schema
         )
@@ -1888,23 +1888,21 @@ class ContactTranslator(FieldTranslator, SchemaValidationMixin):
             metadata.translated[self.field_name] = contacts
 
 
-def license(candidates):
-    """
-    Translate license information into the new metadata schema
-    """
-    rules = trl_rules['license']
-    data_priority = rules['data_priority']
-    dict_key_mapping = rules['dict_key_mapping']
+class LicenseTranslator(
+        StringTruncationMixin, SchemaValidationMixin, FieldTranslator
+        ):
+    field_name = 'license'
 
-    ns_name_starts = rules['children']['name']['nospace_starts_with']
+    def __init__(
+            self, *args, dict_key_mapping: dict, name_starts: list[str],
+            **kwargs
+            ):
+        super().__init__(*args, **kwargs)
+        self.dict_key_mapping = dict_key_mapping
+        self.name_starts = name_starts
 
-    min_content_len = rules['children']['content']['length']['min']
-    max_content_len = rules['children']['content']['length']['max']
-
-    def map_text(str_):
-        """
-        Decide whether a string is a name, license text or neither
-        """
+    def _get_text_type(self, str_) -> str:
+        """Decide whether a string is a name, license text or neither"""
         ttype = None
         if ' ' in str_:
             if 6 < len(str_) <= 64:
@@ -1912,139 +1910,118 @@ def license(candidates):
             elif len(str_) > 64:
                 ttype = "text"
         else:
-            for start in ns_name_starts:
+            for start in self.name_starts:
                 if str_.lower().startswith(start):
                     ttype = "name"
                     break
 
         return ttype
 
-    def update_missing(previous_data, new_data):
-        """
-        Updates the previous data with keys from the new_data, if they do not
-        yet exist
-        """
-        if 'name' in new_data and 'name' not in previous_data:
-            previous_data['name'] = new_data['name']
+    def _process_string(self, str_) -> dict:
+        if not (self.is_valid(str_, 'name') or self.is_valid(str_, 'content')):
+            return
 
-        if 'content' in new_data:
-            if 'content' not in previous_data or\
-                    (new_data['type'] == 'URL'
-                     and previous_data['type'] == 'Text'):
-                previous_data['content'] = new_data['content']
-                previous_data['type'] = new_data['type']
-
-    def clean_text_data(str_):
-        """
-        Cleans non-url text data and decides the type
-        """
-        data = None
-        if _is_valid_string(str_, check_startswith=True,
-                            check_contains=True):
+        if url_regex.match(str_):
+            return {
+                'type': 'URL',
+                'content': str_
+            }
+        elif not _is_valid_string(
+                str_, check_startswith=True, check_contains=True
+                ):
+            return
+        else:
             cleaned_str = _convert_if_html(str_)
             cleaned_str = cleaned_str.strip()
-            ttype = map_text(cleaned_str)
+            ttype = self._get_text_type(cleaned_str)
             if ttype == 'name':
-                data = {'name': cleaned_str}
+                return {'name': cleaned_str}
             elif ttype == 'text':
-                text = _aux.filter_truncate_string(cleaned_str, min_content_len,
-                                             max_content_len)
-                data = {
+                text = self.truncate_string(cleaned_str, 'content')
+                return {
                     'type': 'Text',
                     'content': text
                 }
 
-        return data
+    def _update_data(self, existing: dict, update: dict):
+        """
+        Updates the 'existing' with the 'update' data, if the 'updated'
+        contains more relevant data (In place)
+        """
+        if 'name' not in existing and 'name' in update:
+            existing['name'] = update['name']
 
-    def handle_dict(dict_):
-        """
-        Maps the data in dict keys to the correct output format
-        """
-        dict_data = {}
+        if 'content' in update:
+            if (
+                    ('content' not in existing) or
+                    (
+                        update['type'] == 'URL' and
+                        existing['type'] == 'Text'
+                    )
+            ):
+                existing['content'] = update['content']
+                existing['type'] = update['type']
+
+    def _process_dict(self, dict_) -> dict:
+        combined_data = {}
         for key, value in dict_.items():
-            if key in dict_key_mapping and isinstance(value, str):
-                maps_to = dict_key_mapping[key]
+            if key in self.dict_key_mapping and isinstance(value, str):
+                maps_to = self.dict_key_mapping[key]
                 if maps_to == "url":
-                    if url_regex.match(value) and \
-                            min_content_len <= len(value) <= max_content_len:
+                    if url_regex.match(value) and\
+                            self.is_valid(value, 'content'):
                         urldata = {
                             'content': value,
                             'type': 'URL'
                         }
-                        update_missing(dict_data, urldata)
+                        self._update_data(combined_data, urldata)
                 elif maps_to == "text":
-                    text_data = clean_text_data(value)
+                    # If it turns out to be a URL after all, the below function
+                    # will stilll pick it up...
+                    text_data = self._process_string(value)
                     if text_data is not None:
-                        update_missing(dict_data, text_data)
+                        self._update_data(combined_data, text_data)
 
-                if len(dict_data) == 3 and dict_data['type'] == 'URL':
+                if len(combined_data) == 3 and combined_data['type'] == 'URL':
                     break
 
-        if dict_data == {}:
-            dict_data = None
+        if combined_data:
+            return combined_data
 
-        return dict_data
+    def _process_list(self, list_):
+        data = {}
+        for item in list_:
+            if isinstance(item, str):
+                result = self._process_string(item)
+            elif isinstance(item, dict):
+                result = self._process_dict(item)
+            else:
+                continue
 
-    def handle_string(str_):
-        """
-        Convert non-url text data into the new metadata format
-        """
-        data = None
-        if url_regex.match(str_):
-            if min_content_len <= len(str_) <= max_content_len:
-                data = {
-                    'type': 'URL',
-                    'content': str_
-                }
-        elif not _is_valid_string(str_):
-            return None
-        else:
-            data = clean_text_data(str_)
-
-        return data
-
-    def router(candidate):
-        """
-        Routes the data for the given candidate to the correct function
-        """
-        data = None
-        if isinstance(candidate, str):
-            data = handle_string(candidate)
-        elif isinstance(candidate, list):
-            data = {}
-            for item in candidate:
-                if isinstance(item, str):
-                    dat = handle_string(item)
-                    if dat is not None:
-                        update_missing(data, dat)
-                        if len(data) == 3 and data['type'] == 'URL':
-                            break
-                elif isinstance(item, dict):
-                    dat = handle_dict(item)
-                    if dat is not None:
-                        update_missing(data, dat)
-                        if len(data) == 3 and data['type'] == 'URL':
-                            break
-            if data == {}:
-                data = None
-        elif isinstance(candidate, dict):
-            data = handle_dict(candidate)
-
-        return data
-
-    license_info = {}
-    for key in data_priority:
-        if key in candidates:
-            data = router(candidates[key])
-            if data is not None:
-                update_missing(license_info, data)
-                if len(license_info) == 3 and license_info['type'] == 'URL':
+            if result is not None:
+                self._update_data(data, result)
+                if len(data) == 3 and data['type'] == 'URL':
                     break
 
-    if license_info == {}:
-        license_info = None
+        if data:
+            return data
 
-    return license_info
+    def translate(self, metadata: ResourceMetadata, **kwargs):
+        """Override default method, to merge data from multiple fields"""
+        data = {}
+        for field in self.fields:
+            if field not in metadata.structured:
+                continue
+
+            payload = metadata.structured[field]
+            result = self._process(payload)
+            if result is not None:
+                self._update_data(data, result)
+                if len(data) == 3 and data['type'] == 'URL':
+                    break
+
+        if data:
+            metadata.translated[self.field_name] = data
 
 
 def maintenance(candidates):
