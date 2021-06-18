@@ -1522,9 +1522,7 @@ class DateTranslator(FieldTranslator):
                     inaccurate_date = new_date
                     continue
             elif isinstance(payload, int):
-                dt = _parse_timestamp(payload, self.lt, self.gt)
-                if dt is not None:
-                    new_date = dt.strftime(st.DATE_FORMAT)
+                new_date = self._process_int(payload)
             elif isinstance(payload, datetime.datetime):
                 new_date = payload.strftime(st.DATE_FORMAT)
             else:
@@ -1569,52 +1567,85 @@ class CreatedDateTranslator(DateTranslator):
         super().__init__(*args, favor_earliest=True, **kwargs)
 
 
-def other_dates(candidates):
+class OtherDatesTranslator(DateTranslator):
     """
-    Convert information about other dates to the new metadata schema
-    """
-    rules = trl_rules['otherDates']
-    type_mapping = rules['type_mapping']
-    lt = _parse_date_requirement(rules['children']['value']['lt'])
-    gt = rules['children']['value']['gt']
+    Translator for the 'otherDates' field"""
+    field_name = 'otherDates'
 
-    odates = {}  # First in another format, so multiple can be compared...
-    for key in type_mapping:
-        # Go trough each known type, and if this is there, try to parse
-        if key in candidates:
-            dtp = type_mapping[key]
-            org_val = candidates[key]
-            if isinstance(org_val, str):
-                date = _convert_date_string(org_val, lt, gt)
-            elif isinstance(org_val, datetime.datetime):
-                date = org_val
-            elif isinstance(org_val, int):
-                date = _parse_timestamp(org_val, lt, gt)
+    def __init__(self, *args, type_mapping: dict, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.type_mapping = type_mapping
+
+    def translate(self, metadata: ResourceMetadata, **kwargs):
+        """
+        Override DateTranslator 'translate' function, to apply the proper
+        data format for otherdates
+        """
+        otherdates = []
+        for field in self.fields:
+            if field not in metadata.structured:
+                continue
+
+            payload = metadata.structured[field]
+            date_type = self.type_mapping[field]
+            is_accurate = True
+            if isinstance(payload, (str, dict, list)):
+                if isinstance(payload, dict):
+                    payload = self._get_dict_payload_str(payload)
+                    if payload is None:
+                        continue
+                elif isinstance(payload, list):
+                    payload = self._get_list_payload_str(payload)
+                    if payload is None:
+                        continue
+                new_date = self._process_string(payload)
+                if new_date is not None and len(payload) == 4 and\
+                        year_regex.match(payload):
+                    is_accurate = False
+            elif isinstance(payload, int):
+                new_date = self._process_int(payload)
+            elif isinstance(payload, datetime.datetime):
+                new_date = payload.strftime(st.DATE_FORMAT)
             else:
                 continue
 
-            if date is not None:
-                s_date = date.strftime(st.DATE_FORMAT)
-                if dtp in odates:
-                    if date < odates[dtp]:
-                        odates[dtp] = s_date
-                else:
-                    odates[dtp] = s_date
+            if new_date is not None:
+                # Find if there's already a date with this type defined
+                existing_dates = [
+                    d for d in otherdates if d['type'] == date_type
+                ]
+                if existing_dates:
+                    # There is max 1 existing date of the same type
+                    ex_date = existing_dates[0]['value']
+                    ex_date_accurate = existing_dates[0]['isAccurate']
+                    if ex_date_accurate and not is_accurate:
+                        # If the existing is accurate and the current is not,
+                        # drop the current
+                        continue
+                    elif (
+                            (is_accurate and not ex_date_accurate) or
+                            (self.favor_earliest and new_date < ex_date) or
+                            ((not self.favor_earliest) and new_date > ex_date)
+                    ):
+                        # Remove existing date
+                        otherdates = [
+                            d for d in otherdates if d['type'] != date_type
+                        ]
+                    else:
+                        continue
 
-    # Now put the data in the correct list format
-    odates_list = []
-    for dtp, date in odates.items():
-        odates_list.append(
-            {
-                'type': dtp,
-                'value': date
-            }
-        )
+                # Add new date
+                otherdates.append({
+                    'type': date_type,
+                    'value': new_date,
+                    'isAccurate': is_accurate
+                })
 
-    if odates_list == []:
-        return None
-    else:
-        return odates_list
+        for date in otherdates:
+            date.pop('isAccurate')  # remove internal variable
+
+        if otherdates != []:
+            metadata.translated[self.field_name] = otherdates
 
 
 def contact(candidates):

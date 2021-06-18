@@ -355,3 +355,21 @@ CreatedDateTranslator:
           created: 'henk'
         _translated:
           created: '2019-01-01'
+OtherDatesTranslator:
+  - kwargs:
+      fields:
+      - accepted
+      type_mapping:
+      # This needs to contain everything from
+      # fields
+        accepted: Accepted
+      lt: now
+      gt: 1700-01-01T00:00:00Z
+    translate_function_tests:
+      # Basic test
+      - _structured:
+          accepted: September 6 2020
+        _translated:
+          otherDates:
+            - type: Accepted
+              value: '2020-09-06'
