@@ -1569,7 +1569,12 @@ class CreatedDateTranslator(DateTranslator):
 
 class OtherDatesTranslator(DateTranslator):
     """
-    Translator for the 'otherDates' field"""
+    Translator for the 'otherDates' field
+
+    Adds Arguments:
+        type_mapping -- This contains all items of the fields parameters
+        as keys, and as values the types that they are mapped to
+    """
     field_name = 'otherDates'
 
     def __init__(self, *args, type_mapping: dict, **kwargs):
@@ -1648,39 +1653,45 @@ class OtherDatesTranslator(DateTranslator):
             metadata.translated[self.field_name] = otherdates
 
 
-def contact(candidates):
-    """
-    Converts contact information into the new data format
-    """
-    rules = trl_rules['contact']
-    name_rules = rules['children']['name']
-    details_rules = rules['children']['details']
+# Classes are reordered, so the __init__function of the FieldTranslator is
+# skipped, because the fields parameter for this one has a different format
+class ContactTranslator(FieldTranslator, SchemaValidationMixin):
+    """Translator for the 'contact' field"""
+    field_name = 'contact'
 
-    name_min_len = name_rules['length']['min']
-    name_max_len = name_rules['length']['max']
+    def __init__(
+            self, fields: dict, primary_pairs: list, dict_key_priorities: dict,
+            schema: dict
+            ):
+        # Since the 'fields' parameter for this class has a different layout,
+        # the FieldTranslator __init__ function is skipped.
+        if self.has_circular_dependencies():
+            raise TypeError(
+                'Dependencies of {} are circular'.format(
+                    self.__class__.__name__
+                )
+            )
+        self.fields = fields
+        SchemaValidationMixin.__init__(self, schema=schema)
+        # Convert to sets, so overlap can be checked
+        self.primary_pairs = [
+            set(pp) for pp in primary_pairs
+        ]
+        # To retain order, also store the original
+        self.primary_pairs_original = primary_pairs
+        self.dict_key_priorities = dict_key_priorities
 
-    details_min_len = details_rules['length']['min']
-    details_max_len = details_rules['length']['max']
+    def _process(self, payload):
+        """Not used in this translator"""
+        pass
 
-    def contains_primary_pairs(candidates):
-        """
-        Detects whether the entry contains a primary name/email pair
-        """
-        contains_p_pairs = []
-        for primary_pair in rules['primary_pairs']:
-            if primary_pair[1] in candidates and primary_pair[0] in candidates:
-                contains_p_pairs.append(primary_pair)
-
-        return contains_p_pairs
-
-    def convert_name_string(str_):
-        """
-        Convert the input name string data
-        """
+    def _process_name_string(self, str_) -> str:
+        """Process string name data"""
         if (str_.lower() in NONE_STRINGS) or email_adress_regex.match(str_) or\
-                url_regex.match(str_) or\
-                not (name_min_len <= len(str_) <= name_max_len):
-            return None
+                url_regex.match(str_):
+            return
+        elif not self.is_valid(str_, 'name'):
+            return
         else:
             if str_.count(',') > 1:
                 str_opts = str_.split(',')
@@ -1691,10 +1702,8 @@ def contact(candidates):
                     str_ = None
             return str_
 
-    def convert_name_dict(dict_):
-        """
-        Convert the contact name data in a dict to the new metadata schema
-        """
+    def _process_name_dict(self, dict_) -> str:
+        """Process dict name data"""
         name = None
 
         role = dict_.get('role')
@@ -1710,24 +1719,38 @@ def contact(candidates):
             else:
                 return None
 
-        for key in name_rules['dict_key_priority']:
+        for key in self.dict_key_priorities['name']:
             data = dict_.get(key)
             if isinstance(data, str):
-                name = convert_name_string(data)
+                name = self._process_name_string(data)
                 if name is not None:
                     break
 
         return name
 
-    def convert_details_string(str_, dtype):
-        """
-        Convert the input details string
-        """
-        if (details_min_len <= len(str_) <= details_max_len):
-            if (dtype == 'email' and email_adress_regex.match(str_) is None)\
-                    or (dtype == 'address' and not (',' in str_
-                                                    or '\n' in str_))\
-                    or (dtype == 'phone' and phone_regex.match(str_) is None):
+    def _process_name(self, payload) -> str:
+        """Process possible name data"""
+        name = None
+        if isinstance(payload, str):
+            name = self._process_name_string(payload)
+        elif isinstance(payload, dict):
+            name = self._process_name_dict(payload)
+        elif isinstance(payload, list):
+            for item in payload:
+                if isinstance(item, dict):
+                    name = self._process_name_dict(item)
+                    if name is not None:
+                        break
+
+        return name
+
+    def _process_details_string(self, str_, dtype) -> str:
+        if self.is_valid(str_, 'details'):
+            if (
+                (dtype == 'email' and not email_adress_regex.match(str_)) or
+                (dtype == 'address' and not (',' in str_ or '\n' in str_)) or
+                (dtype == 'phone' and phone_regex.match(str_) is None)
+            ):
                 return None
             else:
                 if dtype == 'email':
@@ -1736,135 +1759,133 @@ def contact(candidates):
         else:
             return None
 
-    def convert_details_dict(dict_):
-        """
-        Convert a dict with contact details to the new metadata schema
-        """
+    def _process_details_dict(self, dict_) -> tuple[str, str]:
         details = None
         details_type = None
 
         # Check for email adress:
-        for key in details_rules['email_dict_keys']:
+        for key in self.dict_key_priorities['details']['email']:
             data = dict_.get(key)
             if isinstance(data, str):
-                details = convert_details_string(data, 'email')
+                details = self._process_details_string(data, 'email')
                 if details is not None:
                     details_type = 'Email'
                     return details, details_type
 
         # Check for phone number:
-        for key in details_rules['phone_dict_keys']:
+        for key in self.dict_key_priorities['details']['phone']:
             data = dict_.get(key)
             if isinstance(data, str):
-                details = convert_details_string(data, 'phone')
+                details = self._process_details_string(data, 'phone')
                 if details is not None:
                     details_type = 'Phone'
                     return details, details_type
 
         # Check for street address:
-        for key in details_rules['address_dict_keys']:
+        for key in self.dict_key_priorities['details']['address']:
             data = dict_.get(key)
             if isinstance(data, str):
-                details = convert_details_string(data, 'address')
+                details = self._process_details_string(data, 'address')
                 if details is not None:
                     details_type = 'Address'
                     return details, details_type
 
         return details, details_type
 
-    def convert_name(data):
-        """
-        Convert contact name information into the new metadata schema
-        """
-        name = None
-        if isinstance(data, str):
-            name = convert_name_string(data)
-        elif isinstance(data, dict):
-            name = convert_name_dict(data)
-        elif isinstance(data, list):
-            for item in data:
-                if isinstance(item, dict):
-                    name = convert_name_dict(item)
-                    if name is not None:
-                        break
-
-        return name
-
-    def convert_details(data):
-        """
-        Convert contact details information into the new metadata schema
-        """
+    def _process_details(self, payload) -> tuple[str, str]:
+        """Process Possible details data"""
         details = None
         details_type = None
-        if isinstance(data, str):
-            details = convert_details_string(data, 'email')
+        if isinstance(payload, str):
+            details = self._process_details_string(payload, 'email')
             details_type = 'Email' if details is not None else None
-        elif isinstance(data, dict):
-            details, details_type = convert_details_dict(data)
-        elif isinstance(data, list):
-            for item in data:
+        elif isinstance(payload, dict):
+            details, details_type = self._process_details_dict(payload)
+        elif isinstance(payload, list):
+            for item in payload:
                 if isinstance(item, dict):
-                    details, details_type = convert_details_dict(item)
+                    details, details_type = self._process_details_dict(item)
                     if details is not None:
                         break
 
         return details, details_type
 
-    def clean_duplicates(contacts):
+    def _duplicates_removed(self, contacts) -> list:
         """
         Cleans entries with the same 'details'. Keeps the first entries
         """
         cleaned_contacts = []
         prev_details = set()
-        for ind_, contact in enumerate(contacts):
+        for contact in contacts:
             if contact['details'] not in prev_details:
                 cleaned_contacts.append(contact)
                 prev_details.add(contact['details'])
 
         return cleaned_contacts
 
-    # First try the primary key combinations
-    ppairs = contains_primary_pairs(candidates)
-    contacts = []
-    for name_key, details_key in ppairs:
-        name = convert_name(candidates[name_key])
-        details, detailsType = convert_details(candidates[details_key])
-        if name is not None and details is not None:
-            contacts.append({
-                "name": name,
-                "details": details,
-                "detailsType": detailsType
-            })
+    def translate(self, metadata: ResourceMetadata, **kwargs):
+        """
+        Override translate function, to implement checking for primary pairs
+        """
+        structured_keys = set(metadata.structured.keys())
 
-    # Now try all name and details keys seperately:
-    if contacts == []:
-        name = None
-        details = None
-        for key in rules['children']['name']['data_priority']:
-            if key in candidates:
-                name = convert_name(candidates[key])
-                if name is not None:
+        # First check primary pairs
+        contacts = []
+        for i, pair in enumerate(self.primary_pairs):
+            if pair.issubset(structured_keys):
+                name_key, details_key = self.primary_pairs_original[i]
+                self._current_field = name_key
+                name = self._process_name(metadata.structured[name_key])
+                self._current_field = details_key
+                details, details_type = self._process_details(
+                    metadata.structured[details_key]
+                )
+
+                if name is not None and details is not None:
+                    contacts.append({
+                        'name': name,
+                        'details': details,
+                        'detailsType': details_type
+                    })
+
+        # If nothing is found, check the fields seperately
+        if contacts == []:
+            # If no primary key combination yields data, strawl the individual
+            # keys
+            contact_data = {}
+            name_added = False
+            details_added = False
+            for fieldname, fieldtypes in self.fields.items():
+                if fieldname not in metadata.structured:
+                    continue
+                payload = metadata.structured[fieldname]
+                self._current_field = fieldname
+                for fieldtype in fieldtypes:
+                    if fieldtype == 'name' and not name_added:
+                        name = self._process_name(payload)
+                        if name is not None:
+                            contact_data['name'] = name
+                            name_added = True
+                    elif fieldtype == 'details' and not details_added:
+                        details, details_type = self._process_details(
+                            payload
+                        )
+                        if details is not None:
+                            contact_data['details'] = details
+                            contact_data['detailsType'] = details_type
+                            details_added = True
+
+                if name_added and details_added:
                     break
 
-        for key in rules['children']['details']['data_priority']:
-            if key in candidates:
-                details, detailsType = convert_details(candidates[key])
-                if details is not None:
-                    break
+            if name_added and details_added:
+                contacts.append(contact_data)
+            else:
+                contacts = None
 
-        if name is not None and details is not None:
-            contacts.append({
-                "name": name,
-                "details": details,
-                "detailsType": detailsType
-            })
-        else:
-            contacts = None
-
-    if contacts is not None:
-        contacts = clean_duplicates(contacts)
-
-    return contacts
+        if contacts is not None:
+            contacts = self._duplicates_removed(contacts)
+            metadata.translated[self.field_name] = contacts
 
 
 def license(candidates):

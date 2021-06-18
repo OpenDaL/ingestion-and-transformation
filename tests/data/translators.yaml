@@ -373,3 +373,77 @@ OtherDatesTranslator:
           otherDates:
             - type: Accepted
               value: '2020-09-06'
+ContactTranslator:
+  - kwargs:
+      fields:
+        creator:
+          - name
+          - details
+        Common-Core_Contact-Email:
+          - details
+        Common-Core_Contact-Name:
+          - name
+        dcat_publisher_email:
+          - details
+        dcat_publisher_name:
+          - name
+      primary_pairs:
+      - - Common-Core_Contact-Name
+        - Common-Core_Contact-Email
+      - - dcat_publisher_name
+        - dcat_publisher_email
+      schema:
+        type: object
+        additionalProperties: false
+        required: ['name', 'details']
+        properties:
+          name:
+            type: string
+            minLength: 3
+            maxLength: 128
+          details:
+            type: string
+            minLength: 8
+            maxLength: 1024
+      dict_key_priorities:
+        name:
+          - name
+        details:
+          email:
+            - email
+          phone:
+            - phone
+          address:
+            - address
+    translate_function_tests:
+      # Basic test with primary pair
+      - _structured:
+          dcat_publisher_name: This is the name
+          dcat_publisher_email: name@domain.tld
+        _translated:
+          contact:
+            - name: This is the name
+              details: name@domain.tld
+              detailsType: Email
+      # Test with invalid primary pair, but a valid other key with phone number
+      - _structured:
+          dcat_publisher_name: This is the name
+          dcat_publisher_email: invalid
+          creator:
+            - name: Correct name
+              phone: '1235564568'
+        _translated:
+          contact:
+            - name: Correct name
+              details: '1235564568'
+              detailsType: Phone
+      # Test with address
+      - _structured:
+          creator:
+            - name: Correct name
+              address: '10 Marshwood lane, Ohio'
+        _translated:
+          contact:
+            - name: Correct name
+              details: '10 Marshwood lane, Ohio'
+              detailsType: Address
