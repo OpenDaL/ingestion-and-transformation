@@ -1656,7 +1656,21 @@ class OtherDatesTranslator(DateTranslator):
 # Classes are reordered, so the __init__function of the FieldTranslator is
 # skipped, because the fields parameter for this one has a different format
 class ContactTranslator(FieldTranslator, SchemaValidationMixin):
-    """Translator for the 'contact' field"""
+    """
+    Translator for the 'contact' field
+
+    Specific arguments:
+        fields -- Each field, with an array of strings indicating whether the
+        field contains a 'name', or 'details', or both.
+
+        primary_pars -- Describes pairs of fields that contain the name and
+        the details. This is a list, where each item is a list of length two,
+        containing both fields, starting with the one that holds the name
+
+        dict_key_priorities -- For each subkey (name, details), and for
+        details, each detailsType, an array of the dict keys related to these
+        elements.
+    """
     field_name = 'contact'
 
     def __init__(
@@ -1891,6 +1905,16 @@ class ContactTranslator(FieldTranslator, SchemaValidationMixin):
 class LicenseTranslator(
         StringTruncationMixin, SchemaValidationMixin, FieldTranslator
         ):
+    """
+    Translator for the license field
+
+    Specific Arguments:
+        dict_key_mapping -- For each possible dict key, describes whether it
+        contains a 'url' or 'text'
+
+        name_starts -- If the string starts with any of the phrases in this
+        list, it's considered a name rather then content
+    """
     field_name = 'license'
 
     def __init__(
@@ -2024,84 +2048,50 @@ class LicenseTranslator(
             metadata.translated[self.field_name] = data
 
 
-def maintenance(candidates):
+class MaintenanceTranslator(FieldTranslator):
     """
-    Convert information about maintenance of the data to the new metadata
-    format
+    Translator for the maintenance field
+
+    Specific arguments:
+        period_dict_keys -- Dictionary keys that contain possible period
+        information
+
+        period_mapping -- A mapping from field values to a period
     """
-    maintenance = None
-    rules = trl_rules['maintenance']
+    field_name = 'maintenance'
 
-    period_mapping = rules['period_mapping']
-    period_dict_keys = rules['period_dict_keys']
-    period_priority = rules['period_priority']
+    def __init__(
+            self, *args, period_dict_keys: list[str], period_mapping: dict,
+            **kwargs
+            ):
+        super().__init__(*args, **kwargs)
+        self.period_dict_keys = period_dict_keys
+        self.period_mapping = period_mapping
 
-    def convert_frequency_string(str_):
-        """
-        Convert a string with information about update frequency into the new
-        format
-        """
-        output = None
+    def _process_string(self, str_):
         if str_.startswith('http'):
             str_ = str_.split('/')[-1]
 
         str_ = str_.lower()
 
-        if str_ in period_mapping:
-            output = 'Updated {}'.format(period_mapping[str_])
+        if str_ in self.period_mapping:
+            return'Updated {}'.format(self.period_mapping[str_])
 
-        return output
-
-    def convert_update_frequency(candidate):
-        """
-        Converts update frequency information to fill the maintenance entry
-        """
-        data = None
-        if isinstance(candidate, str):
-            data = convert_frequency_string(candidate)
-        elif isinstance(candidate, dict):
-            for key in period_dict_keys:
-                if key in candidate:
-                    dat = candidate[key]
-                    if isinstance(dat, str):
-                        data = convert_frequency_string(dat)
-                        if data is not None:
-                            break
-        elif isinstance(candidate, list):
-            for item in candidate:
-                if isinstance(item, str):
-                    data = convert_frequency_string(item)
+    def _process_dict(self, dict_):
+        for key in self.period_dict_keys:
+            if key in dict_:
+                dat = dict_[key]
+                if isinstance(dat, str):
+                    data = self._process_string(dat)
                     if data is not None:
-                        break
+                        return data
 
-        return data
-
-    for key in period_priority:
-        if key in candidates:
-            mdata = convert_update_frequency(candidates[key])
-            if mdata is not None:
-                candidates.pop(key)
-                if maintenance is None:
-                    maintenance = mdata
-                else:
-                    maintenance += '; ' + mdata
-                break
-
-    return maintenance
-
-
-def context(candidates):
-    """
-    Convert context information into the new metadata schema
-    """
-    raise NotImplementedError
-
-
-def funding(candidates):
-    """
-    Convert funding information into the new metadata schema
-    """
-    raise NotImplementedError
+    def _process_list(self, list_):
+        for item in list_:
+            if isinstance(item, str):
+                data = self._process_string(item)
+                if data is not None:
+                    return data
 
 
 def identifier(candidates):

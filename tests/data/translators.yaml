@@ -516,3 +516,31 @@ LicenseTranslator:
             name: This is the title of the license
             content: https://best.license.ever/
             type: URL
+MaintenanceTranslator:
+  - kwargs:
+      fields:
+      - update_freq
+      - updateFrequency
+      period_dict_keys:
+      - period
+      - label
+      period_mapping:
+        annual: annually
+        continuous: continuously
+        daily: daily
+        monthly: monthly
+        quarterly: quarterly
+        weekly: weekly
+    translate_function_tests:
+      # Basic test
+      - _structured:
+          update_freq: continuous
+        _translated:
+          maintenance: Updated continuously
+      # Dict key with priority
+      - _structured:
+          updateFrequency: continuous
+          update_freq:
+            period: weekly
+        _translated:
+          maintenance: Updated weekly
