@@ -544,3 +544,28 @@ MaintenanceTranslator:
             period: weekly
         _translated:
           maintenance: Updated weekly
+IdentifierTranslator:
+  - kwargs:
+      fields:
+      - alternateIdentifier
+      - identifier
+      dict_key_priority:
+      - id
+      - value
+    translate_function_tests:
+      # DOI test
+      - _structured:
+          identifier: doi:10.1006/jmbi.1998.2354
+        _translated:
+          identifier:
+            type: DOI
+            value: 10.1006/jmbi.1998.2354
+      # ISBN/Dict/list priority test
+      - _structured:
+          identifier: doi:10.1006/jmbi.1998.2354
+          alternateIdentifier:
+            - value: 978-90-274-3964-2
+        _translated:
+          identifier:
+            type: ISBN
+            value: '9789027439642'

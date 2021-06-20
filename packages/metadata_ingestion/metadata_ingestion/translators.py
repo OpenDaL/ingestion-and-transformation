@@ -2094,20 +2094,20 @@ class MaintenanceTranslator(FieldTranslator):
                     return data
 
 
-def identifier(candidates):
+class IdentifierTranslator(FieldTranslator):
     """
-    Convert identifier information into the new metadata schema
+    Translator for the maintenance field
+
+    Specific arguments:
+        dict_key_priority -- The priority of dictionary keys to process
     """
-    identifier = None
-    rules = trl_rules['identifier']
+    field_name = 'identifier'
 
-    data_priority = rules['data_priority']
-    dict_key_priority = rules['dict_key_priority']
+    def __init__(self, *args, dict_key_priority: list[str], **kwargs):
+        super().__init__(*args, **kwargs)
+        self.dict_key_priority = dict_key_priority
 
-    def extract_isbn(str_):
-        """
-        Extract the ISBN from a string
-        """
+    def _extract_isbn(self, str_):
         match = isbn_regex.match(str_)
         if match:
             isbn = match.group(2)
@@ -2119,57 +2119,33 @@ def identifier(candidates):
 
             if length == 10 or length == 13:
                 return {'type': 'ISBN', 'value': cleaned_isbn}
-            else:
-                return None
 
-    def convert_string(str_):
-        """
-        Convert string identifier data into the new metadata format
-        """
-        data = None
-
-        if str_ == '':
-            return None
-
+    def _process_string(self, str_):
         lstr = str_.lower()
-
-        if lstr.startswith('10.') or 'doi' in lstr:
+        if lstr == '':
+            return None
+        elif lstr.startswith('10.') or 'doi' in lstr:
             match = doi_regex.match(str_)
             data = {'type': 'DOI', 'value': match.group(7)} if match else None
         elif str_[0].isdigit() or 'isbn' in lstr:
-            data = extract_isbn(str_)
+            data = self._extract_isbn(str_)
 
         return data
 
-    def convert_identifier(candidate):
-        """
-        Convert identifier information to the new metadata schema
-        """
-        data = None
-        if isinstance(candidate, str):
-            data = convert_string(candidate)
-        elif isinstance(candidate, dict):
-            for key in dict_key_priority:
-                if key in candidate:
-                    dat = candidate[key]
-                    data = convert_identifier(dat)
-                    if data is not None:
-                        break
-        elif isinstance(candidate, list):
-            for item in candidate:
-                data = convert_identifier(item)
-                if data is not None:
-                    break
+    def _process_dict(self, dict_):
+        for key in self.dict_key_priority:
+            if key in dict_:
+                dat = dict_[key]
+                if isinstance(dat, str):
+                    result = self._process(dat)
+                    if result is not None:
+                        return result
 
-        return data
-
-    for key in data_priority:
-        if key in candidates:
-            identifier = convert_identifier(candidates[key])
-            if identifier is not None:
-                break
-
-    return identifier
+    def _process_list(self, list_):
+        for item in list_:
+            result = self._process(item)
+            if result is not None:
+                return result
 
 
 def type_(candidates):
