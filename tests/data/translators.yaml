@@ -569,3 +569,36 @@ IdentifierTranslator:
           identifier:
             type: ISBN
             value: '9789027439642'
+TypeTranslator:
+  - kwargs:
+      fields:
+      - type
+      - dataType
+      post_mapping:
+        timeseries: Dataset:Timeseries
+        file: Dataset
+        film: Dataset:Video
+        fileset: Dataset
+        document: Document
+        teachingresource: INVALID
+      dict_key_priority:
+      - type
+      - primary
+    translate_function_tests:
+      # Basic test
+      - _structured:
+          type: file
+        _translated:
+          type:
+            - Dataset
+      # List with dict, with dataset that has prio over
+      - _structured:
+          dataType:
+            - 'SomeGarbage'
+            - 'Document'
+            - primary: timeseries
+        _translated:
+          type:
+            - Dataset
+            - Dataset:Timeseries
+

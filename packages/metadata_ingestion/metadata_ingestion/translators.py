@@ -2148,23 +2148,18 @@ class IdentifierTranslator(FieldTranslator):
                 return result
 
 
-def type_(candidates):
-    """
-    Translate information about the type of resource described by the metadata
+class TypeTranslator(FieldTranslator):
+    field_name = 'type'
 
-    returns:
-        list|NoneType --- If type data is found, a list is returned, with the
-        type, including any parent types
-    """
-    rules = trl_rules['type']
-    data_priority = rules['data_priority']
-    dict_key_priority = rules['dict_key_priority']
-    mapping = rules['post_mapping']
+    def __init__(
+            self, *args, post_mapping: dict, dict_key_priority: list[str],
+            **kwargs
+            ):
+        super().__init__(*args, **kwargs)
+        self.post_mapping = post_mapping
+        self.dict_key_priority = dict_key_priority
 
-    def convert_string(str_):
-        """
-        Convert string data about the type of the resource
-        """
+    def _process_string(self, str_) -> str:
         rtype = None
         str_ = str_.lower()
 
@@ -2196,78 +2191,62 @@ def type_(candidates):
                 rtype = 'Dataset'
 
             if rtype is None:
-                if desc in mapping:
-                    rtype = mapping[desc]
+                if desc in self.post_mapping:
+                    rtype = self.post_mapping[desc]
 
             if rtype is None and ':' in desc:
-                rtype = convert_string(desc.split(':')[-1])
+                rtype = self._process_string(desc.split(':')[-1])
 
             if rtype is not None:
                 break
 
         return rtype
 
-    def handle_dict(dict_):
-        """
-        Try to extract type information from a dict
-        """
+    def _process_dict(self, dict_) -> str:
         data = None
-        for key in dict_key_priority:
+        for key in self.dict_key_priority:
             if key in dict_:
                 dat = dict_[key]
                 if isinstance(dat, str):
-                    data = convert_string(dat)
+                    data = self._process_string(dat)
                     if data is not None:
                         break
 
         return data
 
-    def convert_type(candidate):
-        """
-        Convert resource type information
-        """
-        data = None
-        if isinstance(candidate, str):
-            data = convert_string(candidate)
-        elif isinstance(candidate, dict):
-            data = handle_dict(candidate)
-        elif isinstance(candidate, list):
-            # An entry can only have one type in DataClopedia
-            # If there is a list, it's reviewed whether 'Dataset' is in there
-            # or an entry starting with 'Dataset:', then the entry will get
-            # that one, otherwise it gets the first meaningfull entry
-            types = [convert_type(item) for item in candidate]
-            filt_types = [t for t in types if t is not None]
-            if filt_types != []:
-                for type_ in filt_types:
-                    if type_.startswith('Dataset'):
-                        return type_
-                else:
-                    return filt_types[0]
+    def _process_list(self, list_) -> str:
+        # Only a single type is derived
+        # If there is a list, it's reviewed whether 'Dataset' is in there
+        # or an entry starting with 'Dataset:', then the entry will get
+        # that one, otherwise it gets the first meaningfull entry
+        types = [self._process(item) for item in list_]
+        filt_types = [t for t in types if t is not None]
+        if filt_types != []:
+            for type_ in filt_types:
+                if type_.startswith('Dataset'):
+                    return type_
+            else:
+                return filt_types[0]
 
-        return data
-
-    type_ = None
-    for key in data_priority:
-        if key in candidates:
-            type_ = convert_type(candidates[key])
-            if type_ is not None:
-                break
-    else:
-        for key in candidates:
-            type_ = convert_type(candidates[key])
-            if type_ is not None:
-                break
-
-    # Now also add parent types (if applicable) and return an array
-    if type_ is not None:
+    def _get_full_hierarchy(self, type_) -> list:
+        """Get a list, including all the parents of the given type"""
         type_parts = type_.split(':')
         all_types = []
         for i in range(1, len(type_parts) + 1):
             all_types.append(':'.join(type_parts[:i]))
-        type_ = all_types
+        return all_types
 
-    return type_
+    def translate(self, metadata: ResourceMetadata, **kwargs):
+        """Override to implement getting parents"""
+        for field in self.fields:
+            if field not in metadata.structured:
+                continue
+            payload = metadata.structured[field]
+            result = self._process(payload)
+            if result is not None:
+                metadata.translated[self.field_name] =\
+                    self._get_full_hierarchy(result)
+                return
 
 
 def subject(candidates):
