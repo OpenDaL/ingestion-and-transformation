@@ -664,3 +664,67 @@ SubjectTranslator:
             - 'item'
             - 'item'
         _translated: {}
+LocationTranslator:
+  - kwargs:
+      fields:
+      - extent
+      - spatial
+      - location
+      schema:
+        type: array
+        maxLength: 16
+      bbox_field_pairs:
+      - - minX
+        - minY
+        - maxX
+        - maxY
+      bbox_key_pairs:
+      - - minx
+        - miny
+        - maxx
+        - maxy
+    translate_function_tests:
+      # Basic test with GeoJSON data
+      - _structured:
+          location:
+            type: Point
+            coordinates: [10.6, 23.5]
+        _translated:
+          location:
+            - geometry:
+                type: Point
+                coordinates: [10.6, 23.5]
+      # Test a bbox pair, and a location. Only the former should be returned
+      - _structured:
+          location:
+            type: Point
+            coordinates: [10.6, 23.5]
+          minX: 9.6
+          maxX: 15.2
+          minY: 45
+          maxY: 67.9
+        _translated:
+          location:
+            - geometry:
+                type: envelope
+                coordinates: [[9.6, 67.9], [15.2, 45]]
+      # Test SOLR format
+      - _structured:
+          spatial: ENVELOPE(10,12,20,15)
+        _translated:
+          location:
+            - geometry:
+                type: envelope
+                coordinates: [[10, 20], [12, 15]]
+      # Test dict with bbox data
+      - _structured:
+          extent: 
+            minx: 10
+            maxx: 12
+            miny: 15
+            maxy: 20
+        _translated:
+          location:
+            - geometry:
+                type: envelope
+                coordinates: [[10, 20], [12, 15]]

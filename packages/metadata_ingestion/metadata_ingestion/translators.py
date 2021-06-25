@@ -72,6 +72,8 @@ class FieldTranslator(ABC):
                 )
             )
         self.fields = fields
+        # Used to determine if the translator should be used:
+        self.translate_from = set(fields)
         self.properties = kwargs
 
     @classmethod
@@ -1686,6 +1688,7 @@ class ContactTranslator(FieldTranslator, SchemaValidationMixin):
                 )
             )
         self.fields = fields
+        self.translate_from = set(fields.keys())
         SchemaValidationMixin.__init__(self, schema=schema)
         # Convert to sets, so overlap can be checked
         self.primary_pairs = [
@@ -2369,132 +2372,92 @@ class SubjectTranslator(SchemaValidationMixin, FieldTranslator):
             }
 
 
-def location(candidates):
-    """
-    Translate location information about a resource into the new metadata
-    format
+class LocationTranslator(SchemaValidationMixin, FieldTranslator):
+    field_name = 'location'
 
-    Parameters:
-        candidates --- dict: Key value combinations that possibly contain
-        spatial data about a resource
+    def __init__(
+            self, *args, bbox_field_pairs: list[list[str]],
+            bbox_key_pairs: list[list[str]], **kwargs
+            ):
+        super().__init__(*args, **kwargs)
+        self.bbox_field_pairs = bbox_field_pairs
+        self.bbox_field_pair_sets = [set(pair) for pair in bbox_field_pairs]
+        self.bbox_key_pairs = bbox_key_pairs
+        self.bbox_key_pair_sets = [set(pair) for pair in bbox_key_pairs]
+        self.translate_from.update(
+            [field for pair in self.bbox_field_pairs for field in pair]
+        )
 
-    Returns:
-        Translated Entry --- array/NoneType: 1 or more locations, or None if no
-        information is detected in the candidates
-    """
-    rules = trl_rules['location']
-    # TODO: name_min_len and max_len are currently not enforced
-    # min_name_len = rules['children']['name']['length']['min']
-    # max_name_len = rules['children']['name']['length']['max']
-    data_priority = rules['data_priority']
-    bbox_pairs = rules['bboxPairs']
-    dict_bbox_pairs = rules['dictBBOXPairs']
-    results = []
-
-    class BBOXGeometry(dict):
-        """
-        A BBOX (Envelope) GeoJSON feature (ElasticSearch spec), or point if
-        given coordinates are the same
-        """
-
-        def __init__(self, xmin, ymin, xmax, ymax):
-            r_xmin = round(xmin, 2)
-            r_ymin = round(ymin, 2)
-            r_xmax = round(xmax, 2)
-            r_ymax = round(ymax, 2)
-            if r_xmin == r_xmax and r_ymin == r_ymax:
-                self.update({
-                    'type': 'Point',
-                    'coordinates': [xmin, ymin]
-                })
-            else:
-                self.update({
-                    'type': 'envelope',
-                    'coordinates': [[xmin, ymax], [xmax, ymin]]
-                })
-
-    class Location(dict):
-        """
-        A Location description in the new metadata scheme
-        """
-
-        def __init__(self, name=None, geometry=None, elevation=None):
-            """
-            Create a location dict in the new metadata schema
-            """
-            all_none = True
-
-            if name is not None:
-                all_none = False
-                self['name'] = str(name)
-            if geometry is not None:
-                all_none = False
-                self['geometry'] = dict(geometry)
-            if elevation is not None:
-                all_none = False
-                self['elevation'] = float(elevation)
-
-            if all_none:
-                raise ValueError('At least one argument should have a value!')
-
-    def bbox_valid(xmin, ymin, xmax, ymax):
-        """
-        Checks if given bbox data is valid
-        """
-        return (xmin < xmax and ymin < ymax and xmin >= -180 and xmax <= 180
-                and ymin >= -90 and ymax <= 90
-                and not (xmin == xmax == ymin == ymax == 0)
-                and not (xmin == -180 and xmax == 180 and ymin == -90 and ymax == 90))
-
-    def point_valid(x, y):
-        """
-        Checks if given point location is valid
-        """
-        return ((x >= -180 and x <= 180) and (y >= -90 and y <= 90)
-                and not (x == 0 and y == 0))
-
-    def results_contain_geometry(results):
-        """
-        Check for geometry data in results
-        """
-        if results == []:
-            return False
-
-        for result in results:
-            if 'geometry' in result:
-                return True
+    def _create_bbox_geometry(
+            self, xmin: float, ymin: float, xmax: float, ymax: float
+            ) -> dict:
+        r_xmin = round(xmin, 2)
+        r_ymin = round(ymin, 2)
+        r_xmax = round(xmax, 2)
+        r_ymax = round(ymax, 2)
+        if r_xmin == r_xmax and r_ymin == r_ymax:
+            return {
+                'type': 'Point',
+                'coordinates': [xmin, ymin]
+            }
         else:
-            return False
+            return {
+                'type': 'envelope',
+                'coordinates': [[xmin, ymax], [xmax, ymin]]
+            }
 
-    def process_geometry(item):
-        """
-        Process single geometry to return relevant information
-        """
-        if item.type == 'Point':
-            if not point_valid(item.x, item.y):
-                return None
-            return dict(Location(geometry=geometry.mapping(item)))
-        else:
-            xmin, ymin, xmax, ymax = item.bounds
-            if not bbox_valid(xmin, ymin, xmax, ymax):
-                return None
-            return dict(Location(geometry=BBOXGeometry(*item.bounds)))
+    def _create_location(
+            self, name: str = None, geometry: dict = None,
+            elevation: float = None
+            ):
+        all_none = True
+        location = {}
+        if name is not None:
+            all_none = False
+            location['name'] = str(name)
+        if geometry is not None:
+            all_none = False
+            location['geometry'] = dict(geometry)
+        if elevation is not None:
+            all_none = False
+            location['elevation'] = float(elevation)
 
-    def handle_shape(shape):
-        """
-        Handle shapely shape data
-        """
+        if all_none:
+            raise ValueError('At least one argument should have a value!')
+
+        return location
+
+    def _bbox_is_valid(
+            self, xmin: float, ymin: float, xmax: float, ymax: float
+            ) -> bool:
+        return (
+            # max greater than min (or equal, then it's created as point)
+            (xmin <= xmax and ymin <= ymax) and
+            # Within valid bounds
+            (xmin >= -180 and xmax <= 180 and ymin >= -90 and ymax <= 90) and
+            # Not all zero
+            not (xmin == xmax == ymin == ymax == 0) and
+            # Not the entire globe
+            not (xmin == -180 and xmax == 180 and ymin == -90 and ymax == 90)
+        )
+
+    def _create_bbox_location(self, *args) -> dict:
+        if self._bbox_is_valid(*args):
+            geometry = self._create_bbox_geometry(*args)
+            return self._create_location(geometry=geometry)
+
+    def _locations_from_shape(self, shape: geometry.shape):
         results = []
 
         try:
             if 'multi' in shape.type.lower():
                 items = list(shape)
                 for item in items:
-                    result = process_geometry(item)
+                    result = self._create_bbox_location(*item.bounds)
                     if result is not None:
                         results.append(result)
             else:
-                result = process_geometry(shape)
+                result = self._create_bbox_location(*shape.bounds)
                 if result is not None:
                     results.append(result)
         except TypeError:
@@ -2502,36 +2465,25 @@ def location(candidates):
 
         return results
 
-    def handle_geojson(dict_):
-        """
-        Convert GeoJSON data into the new metadata format
-        """
+    def _process_geojson(self, dict_) -> list[dict]:
         try:
             shape = geometry.asShape(dict_)
             if not shape.is_empty:
-                return handle_shape(shape)
+                return self._locations_from_shape(shape)
             else:
                 return []
         except ValueError:
             return []
 
-    def handle_wkt(str_):
-        """
-        Convert WKT geodata into the new metadata format
-        """
+    def _process_wkt(self, str_) -> list[dict]:
         try:
             shape = wkt.loads(str_)
-            return handle_shape(shape)
+            return self._locations_from_shape(shape)
         except WKTReadingError:
             return []
 
-    def handle_string(str_):
-        """
-        Derive results from string data
-        """
-        results = []
-
-        # Test for GeoJSON, WKT or extent data, else handle as name:
+    def _process_string(self, str_) -> list[dict]:
+        # CASE1: GeoJSON as string
         if '"type"' in str_ and '"coordinates"' in str_:
             if not str_.startswith('{') and str_.endswith('}'):
                 if str_.startswith('"') and str_.endswith(']'):
@@ -2543,9 +2495,9 @@ def location(candidates):
                 geojson_data = _aux.string_conversion(str_)
 
             if isinstance(geojson_data, dict):
-                results = handle_geojson(geojson_data)
+                return self._process_geojson(geojson_data)
+        # CASE 2: SOLR Envelope format
         elif str_.startswith('ENVELOPE('):
-            # SOLR geom ENVELOPE format
             coordinate_string = str_.strip('ENVELOPE() ')
             try:
                 coords = [float(c) for c in coordinate_string.split(',')]
@@ -2553,18 +2505,13 @@ def location(candidates):
             except (ValueError):
                 return []
 
-            if not bbox_valid(xmin, ymin, xmax, ymax):
-                return []
-
-            loc = dict(Location(geometry=BBOXGeometry(
-                xmin,
-                ymin,
-                xmax,
-                ymax
-            )))
-            results = [loc]
+            loc = self._create_bbox_location(xmin, ymin, xmax, ymax)
+            if loc is not None:
+                return [loc]
+        # CASE 3: It's a WKT String
         elif wkt_format_regex.match(str_):
-            results = handle_wkt(str_)
+            return self._process_wkt(str_)
+        # CASE 4: It's a string describing a BBOX
         elif bbox_data_regex.match(str_):
             if str_.count(',') == 3:
                 xmin, ymin, xmax, ymax = str_.split(',')
@@ -2578,16 +2525,9 @@ def location(candidates):
             xmax = float(xmax)
             ymax = float(ymax)
 
-            if not bbox_valid(xmin, ymin, xmax, ymax):
-                return []
-
-            loc = dict(Location(geometry=BBOXGeometry(
-                xmin,
-                ymin,
-                xmax,
-                ymax
-            )))
-            results = [loc]
+            loc = self._create_bbox_location(xmin, ymin, xmax, ymax)
+            if loc is not None:
+                return [loc]
         else:
             bbox_match = bbox_key_value_pattern.match(str_.lower().strip())
             if bbox_match is not None:
@@ -2596,18 +2536,13 @@ def location(candidates):
                     key = bbox_match.group(key_i)
                     value = bbox_match.group(value_i)
                     bbox_dict[key] = value
-                results = handle_dict(bbox_dict)
+                return self._process_dict(bbox_dict)
 
-        return results
-
-    def handle_dict(dict_):
-        """
-        Convert dict data into the new metadata format
-        """
-        results = []
+    def _process_dict(self, dict_) -> list[dict]:
+        # It's in GeoJSON format:
         if 'coordinates' in dict_:
             if 'type' in dict_ and dict_['type'] != 'envelope':
-                results = handle_geojson(dict_)
+                return self._process_geojson(dict_)
             else:
                 if len(dict_['coordinates']) == 2:
                     coords = dict_['coordinates']
@@ -2621,26 +2556,13 @@ def location(candidates):
                         ymin = min(ys)
                         xmax = max(xs)
                         ymax = max(ys)
-                        if not bbox_valid(xmin, ymin, xmax, ymax):
-                            if xmin == xmax and ymin == ymax:
-                                if point_valid(xmin, ymin):
-                                    results.append(
-                                        dict(Location(geometry=BBOXGeometry(
-                                            xmin,
-                                            ymin,
-                                            xmax,
-                                            ymax
-                                            ))))
-                            else:
-                                return []
-                        results.append(dict(Location(geometry=BBOXGeometry(
-                            xmin,
-                            ymin,
-                            xmax,
-                            ymax
-                        ))))
+                        loc = self._create_bbox_location(
+                            xmin, ymin, xmax, ymax
+                        )
+                        if loc is not None:
+                            return [loc]
+        # It's in CSW/Geonetwork format:
         elif 'LowerCorner' in dict_ and 'UpperCorner' in dict_:
-            # Format used by CSW/Geonetwork
             lc_data = dict_['LowerCorner']
             uc_data = dict_['UpperCorner']
             if isinstance(lc_data, str) and isinstance(uc_data, str):
@@ -2657,22 +2579,11 @@ def location(candidates):
                         xmin, xmax = sorted(xvals)
                         ymin, ymax = sorted(yvals)
 
-                        if bbox_valid(xmin, ymin, xmax, ymax):
-                            results.append(dict(Location(geometry=BBOXGeometry(
-                                xmin,
-                                ymin,
-                                xmax,
-                                ymax
-                            ))))
-                        elif xmin == xmax and ymin == ymax:
-                            if point_valid(xmin, ymin):
-                                results.append(
-                                    dict(Location(geometry=BBOXGeometry(
-                                        xmin,
-                                        ymin,
-                                        xmax,
-                                        ymax
-                                        ))))
+                        loc = self._create_bbox_location(
+                            xmin, ymin, xmax, ymax
+                        )
+                        if loc is not None:
+                            return [loc]
                     except ValueError:
                         pass
         elif 'lowerleft' in dict_ and 'upperright' in dict_:
@@ -2689,23 +2600,20 @@ def location(candidates):
                         ymin = float(ymin)
                         xmax = float(xmax)
                         ymax = float(ymax)
-                        if bbox_valid(xmin, ymin, xmax, ymax):
-                            results.append(dict(Location(geometry=BBOXGeometry(
-                                xmin,
-                                ymin,
-                                xmax,
-                                ymax
-                            ))))
+                        loc = self._create_bbox_location(
+                            xmin, ymin, xmax, ymax
+                        )
+                        if loc is not None:
+                            return [loc]
                     except ValueError:
                         pass
         else:
             # Check if any of the dictBBOXPairs are in the dict:
-            for pair in dict_bbox_pairs:
-                for bbox_key in pair:
-                    if bbox_key not in dict_:
-                        break
-                else:
-                    xminkey, yminkey, xmaxkey, ymaxkey = pair
+            dict_keys = set(dict_.keys())
+            for i, pair in enumerate(self.bbox_key_pair_sets):
+                if pair.issubset(dict_keys):
+                    xminkey, yminkey, xmaxkey, ymaxkey =\
+                        self.bbox_key_pairs[i]
 
                     try:
                         # If they are strings, replace any comma decimal
@@ -2723,34 +2631,22 @@ def location(candidates):
                     except ValueError:
                         break
 
-                    if bbox_valid(xmin, ymin, xmax, ymax):
-                        results.append(dict(Location(geometry=BBOXGeometry(
-                            xmin,
-                            ymin,
-                            xmax,
-                            ymax
-                        ))))
-                    elif xmin == xmax and ymin == ymax:
-                        if point_valid(xmin, ymin):
-                            results.append(
-                                dict(Location(geometry=BBOXGeometry(
-                                    xmin,
-                                    ymin,
-                                    xmax,
-                                    ymax
-                                    ))))
-                    break
+                    loc = self._create_bbox_location(
+                        xmin, ymin, xmax, ymax
+                    )
+                    if loc is not None:
+                        return [loc]
             else:
                 # No valid bbox pairs are found, try final options
                 if st.REP_TEXTKEY in dict_:
                     value = dict_[st.REP_TEXTKEY]
                     if isinstance(value, str):
-                        return handle_string(value)
+                        return self._process_string(value)
 
                 # Format in ANDS:
                 if dict_.get('type') == 'coverage' and 'spatial' in dict_:
                     if isinstance(dict_['spatial'], dict):
-                        return handle_dict(dict_['spatial'])
+                        return self._process(dict_['spatial'])
 
                 # Get other keys
                 fetch_key = None
@@ -2760,38 +2656,19 @@ def location(candidates):
                         break
 
                 if fetch_key:
-                    ggel = dict_[fetch_key]
-                    if isinstance(ggel, dict):
-                        return handle_dict(ggel)
-                    elif isinstance(ggel, list):
-                        return handle_list(ggel)
-                    elif isinstance(ggel, str):
-                        return handle_string(ggel)
+                    payload = dict_[fetch_key]
+                    return self._process(payload)
 
-        return results
-
-    def handle_list(list_):
-        """
-        Handle list data
-        """
+    def _process_list(self, list_) -> list[dict]:
         results = []
         for item in list_:
-            if isinstance(item, str):
-                reslist = handle_string(item)
-                results += reslist
-            elif isinstance(item, dict):
-                reslist = handle_dict(item)
-                results += reslist
-            elif isinstance(item, list):
-                reslist = handle_list(item)
-                results += reslist
+            new_results = self._process(item)            
+            if new_results:
+                results.extend(new_results)
 
         return results
 
-    def filter_duplicates(locations):
-        """
-        Filter (near) duplicates from a list of locations
-        """
+    def _duplicates_filtered(self, locations: list[dict]) -> list[dict]:
         duplicate_inds = set()
 
         # Get all envelopes, used to check if points are in them
@@ -2808,143 +2685,115 @@ def location(candidates):
         ymins = set()
         xmaxs = set()
         ymaxs = set()
-        l_names = set()
         for ind_, loc in enumerate(locations):
-            geom = loc.get('geometry')
-            name = loc.get('name')
-            if geom is not None:
-                duplicate = True
-                if geom['type'] == 'envelope':
-                    r_xmin = round(geom['coordinates'][0][0], 2)
-                    r_ymin = round(geom['coordinates'][1][1], 2)
-                    r_xmax = round(geom['coordinates'][1][0], 2)
-                    r_ymax = round(geom['coordinates'][0][1], 2)
+            geom = loc['geometry']
+            duplicate = True
+            if geom['type'] == 'envelope':
+                r_xmin = round(geom['coordinates'][0][0], 2)
+                r_ymin = round(geom['coordinates'][1][1], 2)
+                r_xmax = round(geom['coordinates'][1][0], 2)
+                r_ymax = round(geom['coordinates'][0][1], 2)
 
-                    if r_xmin not in xmins:
-                        duplicate = False
-                    elif r_ymin not in ymins:
-                        duplicate = False
-                    elif r_xmax not in xmaxs:
-                        duplicate = False
-                    elif r_ymax not in ymaxs:
-                        duplicate = False
+                if r_xmin not in xmins:
+                    duplicate = False
+                elif r_ymin not in ymins:
+                    duplicate = False
+                elif r_xmax not in xmaxs:
+                    duplicate = False
+                elif r_ymax not in ymaxs:
+                    duplicate = False
 
-                    if not duplicate:
-                        xmins.add(r_xmin)
-                        ymins.add(r_ymin)
-                        xmaxs.add(r_xmax)
-                        ymaxs.add(r_ymax)
-                    else:
-                        duplicate_inds.add(ind_)
+                if not duplicate:
+                    xmins.add(r_xmin)
+                    ymins.add(r_ymin)
+                    xmaxs.add(r_xmax)
+                    ymaxs.add(r_ymax)
                 else:
-                    x = geom['coordinates'][0]
-                    y = geom['coordinates'][1]
-                    r_x = round(x, 2)
-                    r_y = round(y, 2)
+                    duplicate_inds.add(ind_)
+            else:
+                x = geom['coordinates'][0]
+                y = geom['coordinates'][1]
+                r_x = round(x, 2)
+                r_y = round(y, 2)
 
-                    for env in envelopes:
-                        if env[0] <= x <= env[2] and env[1] <= y <= env[3]:
-                            break
-                    else:
-                        if r_x not in xs:
-                            duplicate = False
-                        elif r_y not in ys:
-                            duplicate = False
-
-                    if not duplicate:
-                        xs.add(r_x)
-                        ys.add(r_y)
-                    else:
-                        duplicate_inds.add(ind_)
-                if duplicate:
-                    continue
-
-            if name is not None:
-                if name.lower() not in l_names:
-                    l_names.add(name.lower())
+                for env in envelopes:
+                    if env[0] <= x <= env[2] and env[1] <= y <= env[3]:
+                        break
                 else:
-                    if geom is None:
-                        duplicate_inds.add(ind_)
-                    else:
-                        # Geometry is apperently unique, see if the name
-                        # Occurs in an entry without geometry:
-                        match = [[l, ind_] for ind_, l
-                                 in enumerate(locations[:ind_])
-                                 if 'name' in l and l['name'].lower() == name
-                                 and ind_ not in duplicate_inds]
+                    if r_x not in xs:
+                        duplicate = False
+                    elif r_y not in ys:
+                        duplicate = False
 
-                        if 'geometry' not in match[0][0]:
-                            duplicate_inds.add(match[0][1])
+                if not duplicate:
+                    xs.add(r_x)
+                    ys.add(r_y)
+                else:
+                    duplicate_inds.add(ind_)
+                    
+            if duplicate:
+                continue
 
-        out_locs = [l for ind_, l in enumerate(locations) if ind_ not in
-                    duplicate_inds]
+        out_locs = [
+            l for ind_, l in enumerate(locations) if ind_ not in duplicate_inds
+        ]
 
         return out_locs
 
-    # First check for BBOX keys, since these need to be combined:
-    first_keys = [pair[0] for pair in bbox_pairs]
-    for ind_, test_key in enumerate(first_keys):
-        if test_key in candidates:
-            try:
-                bbox_coords = [float(candidates[k]) for k in bbox_pairs[ind_]]
-                xmin, ymin, xmax, ymax = bbox_coords
-                if bbox_valid(*bbox_coords):
-                    feature = BBOXGeometry(*bbox_coords)
-                    results.append(dict(Location(geometry=feature)))
+    def _location_from_bbox_pair_data(
+            self, xmin_data, ymin_data, xmax_data, ymax_data
+            ) -> dict:
+        """Create a location from the data in bbox pair fields"""
+        try:
+            xmin = float(xmin_data)
+            ymin = float(ymin_data)
+            xmax = float(xmax_data)
+            ymax = float(ymax_data)
+            return self._create_bbox_location(
+                xmin, ymin, xmax, ymax
+            )
+        except ValueError:
+            return
+
+    def translate(self, metadata: ResourceMetadata, **kwargs):
+        """Override to check bbox pairs, and merge results"""
+        locations = []
+
+        structured_fields = set(metadata.structured.keys())
+        for i, pair in enumerate(self.bbox_field_pair_sets):
+            if pair.issubset(structured_fields):
+                xminkey, yminkey, xmaxkey, ymaxkey = self.bbox_field_pairs[i]
+                loc = self._location_from_bbox_pair_data(
+                    metadata.structured[xminkey],
+                    metadata.structured[yminkey],
+                    metadata.structured[xmaxkey],
+                    metadata.structured[ymaxkey]
+                )
+                if loc is not None:
+                    locations.append(loc)
                     break
-                elif xmin == xmax and ymin == ymax:
-                    if point_valid(xmin, ymin):
-                        results.append(
-                            dict(Location(geometry=BBOXGeometry(
-                                xmin,
-                                ymin,
-                                xmax,
-                                ymax
-                                ))))
-            except (TypeError, ValueError, KeyError):
-                # If a wrong format is in one or more of the fields, ignore it
-                pass
 
-    # Otherwise, examine the rest of the keys, in order specified
-    for key in data_priority:
-        if key in candidates:
-            payload = candidates[key]
-            if isinstance(payload, str):
-                new_results = handle_string(payload)
-            elif isinstance(payload, dict):
-                new_results = handle_dict(payload)
-            elif isinstance(payload, list):
-                new_results = handle_list(payload)
+        if locations:
+            locations = self._duplicates_filtered(locations)
+            if not self.is_valid(locations):
+                return
+            metadata.translated[self.field_name] = locations
+            return
 
-            results = results + new_results
+        for field in self.fields:
+            if field not in metadata.structured:
+                continue
+            payload = metadata.structured[field]
+            new_locations = self._process(payload)
+            if new_locations is not None:
+                locations.extend(new_locations)
 
-    results = filter_duplicates(results)
+        locations = self._duplicates_filtered(locations)
 
-    # If there is one entry with only a name, and one with only geometry,
-    # merge these entries
-    if len(results) == 2:
-        geom = None
-        name = None
-        for ind_, loc in enumerate(results):
-            if len(loc) == 1:
-                if 'geometry' in loc:
-                    geom = loc['geometry']
-                elif 'name' in loc:
-                    name = loc['name']
-        if geom is not None and name is not None:
-            results = [{'geometry': geom, 'name': name}]
-
-    if results == []:
-        results = None
-
-    return results
-
-
-def spatial_resolution(candidates):
-    """
-    Translate information about the spatial resolution of a resource
-    """
-    raise NotImplementedError
+        if locations:
+            if not self.is_valid(locations):
+                return
+            metadata.translated[self.field_name] = locations
 
 
 def time_period(candidates):
