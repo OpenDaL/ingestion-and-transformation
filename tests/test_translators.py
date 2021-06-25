@@ -2,8 +2,17 @@
 """
 Contains the tests for the structurers
 """
-from metadata_ingestion import translators, resource
+from pathlib import Path
 from helpers import load_data, compare_output
+# Override config path so it's using the test specific configs
+config_path = Path(
+    Path(__file__).absolute().parent,
+    'configs'
+)
+from metadata_ingestion import settings
+settings.INGESTION_CONF_DIR = config_path
+from metadata_ingestion import translators, resource
+
 
 testdata = load_data('translators.yaml')
 

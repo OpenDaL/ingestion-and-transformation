@@ -601,4 +601,66 @@ TypeTranslator:
           type:
             - Dataset
             - Dataset:Timeseries
-
+SubjectTranslator:
+  - kwargs:
+      fields:
+      - subject
+      - subjects
+      - topic
+      - topics
+      schema:
+        type: array
+        maxLength: 5
+      source_max_size: 15
+      dict_key_priority:
+      - title
+      - _content
+      - name
+    translate_function_tests:
+      # Basic test french translation
+      - _structured:
+          subject: emploi
+        _translated:
+          subject:
+            all:
+              - economy
+              - macro_economy
+              - employment
+            low_level:
+              - employment
+      # list/dict translation
+      - _structured:
+          topics:
+            - notImportantField: unemployment
+            - title: incomes
+            - _content: micro economic
+        _translated:
+          subject:
+            all:
+              - economy
+              - macro_economy
+              - income
+              - micro_economy
+            low_level:
+              - income
+              - micro_economy
+      # Too long list
+      - _structured:
+          topics:
+            - notImportantField: unemployment
+            - title: incomes
+            - _content: micro economic
+            - 'item'
+            - 'item'
+            - 'item'
+            - 'item'
+            - 'item'
+            - 'item'
+            - 'item'
+            - 'item'
+            - 'item'
+            - 'item'
+            - 'item'
+            - 'item'
+            - 'item'
+        _translated: {}

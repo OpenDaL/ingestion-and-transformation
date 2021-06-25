@@ -49,7 +49,9 @@ def load_config():
     # Config dir
     INGESTION_CONF_DIR = cdata['config_dir']
     if not Path(INGESTION_CONF_DIR).is_dir():
-        raise ValueError('The config_dir in the configuration file is not valid')
+        raise ValueError(
+            'The config_dir in the configuration file is not valid'
+        )
 
     # Harvest settings
     RQ_TIMEOUT = cdata['max_timeout']
@@ -72,15 +74,3 @@ load_config()
 
 # Set certificate dir
 CERT_DIR = Path(INGESTION_CONF_DIR, r'certificates')
-
-# Set config file locations
-SRCS_CFG_LOC = Path(INGESTION_CONF_DIR, r'sources.yaml')
-TRANSL_CFG_LOC = Path(INGESTION_CONF_DIR, r'translation.json')
-PSTFLTR_LOC = Path(INGESTION_CONF_DIR, r'postfilters.yaml')
-FILTS_CFG_LOC = Path(INGESTION_CONF_DIR, r'filters.json')
-TRULES_CFG_LOC = Path(INGESTION_CONF_DIR, r'translation_rules.json')
-SUBJECT_SCHEME_LOC = Path(INGESTION_CONF_DIR, r'subject_scheme.json')
-FF_MAPPING_LOC = Path(INGESTION_CONF_DIR, r'ff_mapping.json')
-LANG_MAPPING_LOC = Path(INGESTION_CONF_DIR, r'lang_mapping.json')
-EPSG_LOC = Path(INGESTION_CONF_DIR, r'epsg_codes.json')
-EPSG_NAMES_LOC = Path(INGESTION_CONF_DIR, r'name2epsg.json')

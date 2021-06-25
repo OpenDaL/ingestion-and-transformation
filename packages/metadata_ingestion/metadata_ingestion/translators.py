@@ -2249,23 +2249,19 @@ class TypeTranslator(FieldTranslator):
                 return
 
 
-def subject(candidates):
-    """
-    Translate information about the subject of a resource to the new metadata
-    schema
-    """
-    rules = trl_rules['subject']
+class SubjectTranslator(SchemaValidationMixin, FieldTranslator):
+    field_name = 'subject'
 
-    max_subjects = rules['array_length']['max']
-    max_sarray_length = rules["source_array_length"]["max"]
-    dict_key_priority = rules['dict_key_priority']
-    data_priority = rules['data_priority']
+    def __init__(
+            self, *args, source_max_size: int, dict_key_priority: list[str],
+            **kwargs
+            ):
+        super().__init__(*args, **kwargs)
+        self.source_max_size = source_max_size
+        self.dict_key_priority = dict_key_priority
 
-    def process_string(str_):
-        """
-        Standardises a string, and splits it in case multiple subjects are in
-        it. Returns a list
-        """
+    def _process_string(self, str_) -> list[str]:
+        """Returns a list of standardized strings"""
         new_sample = re.sub(r'["\{\}]', '', str_).lower()
 
         if new_sample.count(',') > 1:
@@ -2283,101 +2279,94 @@ def subject(candidates):
 
         return new_sample
 
-    def process_dict(dict_):
-        """
-        Process dict data, to extract standardises strings used to convert to
-        subject data
-        """
+    def _process_dict(self, dict_) -> list[str]:
+        """Returns a list of standardized strings"""
         standard_strings = []
-        for key in dict_key_priority:
+        for key in self.dict_key_priority:
             if key in dict_:
                 dat = dict_[key]
                 if isinstance(dat, str):
-                    standard_strings.extend(process_string(dat))
+                    standard_strings.extend(self._process_string(dat))
                     break
                 elif isinstance(dat, list):
-                    standard_strings.extend(process_list(dat))
+                    standard_strings.extend(self._process_list(dat))
                     break
 
         return standard_strings
 
-    def process_list(list_):
-        """
-        Process list data, to extract standardised strings
-        """
-        if len(list_) > max_sarray_length:
+    def _process_list(self, list_):
+        """Returns a list of standardized strings"""
+        if len(list_) > self.source_max_size:
             return []
 
         standard_strings = []
         for item in list_:
             if isinstance(item, str):
-                standard_strings.extend(process_string(item))
+                standard_strings.extend(self._process_string(item))
             elif isinstance(item, dict):
-                standard_strings.extend(process_dict(item))
+                standard_strings.extend(self._process_dict(item))
 
         return standard_strings
 
-    def convert_string(str_):
-        """
-        Converts standardised string data into a subject
-        """
+    def _get_string_subjects(self, str_) -> list[str]:
         if str_ in translated_subjects:
             return subject_mapping[str_]
         else:
             return []
 
-    def remove_parents_relations(subject_list):
+    def _relations_removed(self, subject_set) -> list[str]:
         """
-        Remove parents and relations from a list of subjects, keeps only
+        Remove parents and relations from a set of subjects, keeps only
         lowest level unique subjects. Also removes relations of relations
         """
         relations_parents = set()
-        for subject in subject_list:
+        for subject in subject_set:
             relations_parents.update(subject_scheme_data[subject]
                                      ['all_parents_relations'])
 
-        return [s for s in subject_list if s not in relations_parents]
+        return [s for s in subject_set if s not in relations_parents]
 
-    # Search trough each key to find subject data
-    found_subjects = []
-    for key in data_priority:
-        if key in candidates:
-            value = candidates[key]
-            if isinstance(value, str):
-                standardised_names = process_string(value)
-            elif isinstance(value, list):
-                standardised_names = process_list(value)
-            elif isinstance(value, dict):
-                standardised_names = process_dict(value)
-            elif value is None:
+    def _parents_added(self, subject_list) -> list[str]:
+        """
+        Add all parents to the list of subjects
+        """
+        total_subjects = set()
+        for subject in subject_list:
+            total_subjects.add(subject)
+            total_subjects.update(
+                subject_scheme_data[subject]['all_parents_relations']
+            )
+        return list(total_subjects)
+
+    def translate(self, metadata: ResourceMetadata, **kwargs):
+        """
+        Override the translation function to convert the standardized
+        strings and merge data from multiple keys
+        """
+        subjects = set()
+        for field in self.fields:
+            if field not in metadata.structured:
                 continue
-            for name in standardised_names:
-                subjects = convert_string(name)
-                # Make sure only unique are added and only lowest level
-                # childs are used in count
-                found_subjects = list(set(found_subjects + subjects))
-                found_subjects = remove_parents_relations(found_subjects)
 
-            if len(found_subjects) > max_subjects:
-                found_subjects = []  # Data is most likely crap
-                break
+            payload = metadata.structured[field]
+            standardized_strings = self._process(payload)
+            for str_ in standardized_strings:
+                subjects.update(
+                    self._get_string_subjects(str_)
+                )
 
-    if found_subjects == [] or len(found_subjects) > max_subjects:
-        return None
+        subjects = self._relations_removed(subjects)
+        if subjects and self.is_valid(subjects):
+            # Add all parents, to ensure proper ES search and
+            # aggregations
 
-    # Add all parents again, for proper ES aggregations, and simplified
-    # search from front-end
-    total_subjects = set()
-    for subject in found_subjects:
-        total_subjects.add(subject)
-        total_subjects.update(
-            subject_scheme_data[subject]['all_parents_relations']
-        )
-    total_subjects = list(total_subjects)
-
-    # Since low_level_count is needed for scoring, it's exported. Final format
-    # is done in post_processing.score, where the 'low_level' is used
-    return {'all': total_subjects, 'low_level': found_subjects}
+            # Since low_level_count is needed for scoring, it's exported. Final
+            # format is done in post_processing.score, where the 'low_level' is
+            # used
+            metadata.translated[self.field_name] = {
+                'all': self._parents_added(subjects),
+                'low_level': subjects,
+            }
 
 
 def location(candidates):

@@ -8,9 +8,10 @@ databases
 """
 import datetime
 import re
+from pathlib import Path
 
 from metadata_ingestion import _dataio
-from metadata_ingestion import settings as st
+from metadata_ingestion.settings import INGESTION_CONF_DIR
 
 date_regex = re.compile(r'^\d{4}-\d{2}-\d{2}$')
 
@@ -19,7 +20,7 @@ def sources():
     """
     Returns the list of metadata sources
     """
-    return _dataio.loadyaml(st.SRCS_CFG_LOC)
+    return _dataio.loadyaml(Path(INGESTION_CONF_DIR, r'sources.yaml'))
 
 
 def postfilters():
@@ -27,7 +28,9 @@ def postfilters():
     Returns the list of metadata sources
     """
     # Convert lowest level to sets
-    postfilters = _dataio.loadyaml(st.PSTFLTR_LOC)
+    postfilters = _dataio.loadyaml(
+        Path(INGESTION_CONF_DIR, r'postfilters.yaml')
+    )
     postfilters_sets = {}
     for k, v in postfilters.items():
         if isinstance(v, dict):
@@ -43,7 +46,7 @@ def translation():
     """
     Returns the translation configuration data
     """
-    return _dataio.loadjson(st.TRANSL_CFG_LOC)
+    return _dataio.loadjson(Path(INGESTION_CONF_DIR, r'translation.json'))
 
 
 def translation_rules():
@@ -70,7 +73,9 @@ def translation_rules():
                 if isinstance(ddata, str) and date_regex.match(ddata):
                     requirements[key] = str_to_date(ddata)
 
-    data = _dataio.loadjson(st.TRULES_CFG_LOC)
+    data = _dataio.loadjson(
+        Path(INGESTION_CONF_DIR, r'translation_rules.json')
+    )
 
     # Look for 'than' and 'greater than' dates, and convert them to datetime
     for parent, pdata in data.items():
@@ -87,27 +92,27 @@ def filters():
     """
     Returns the filter configuration data
     """
-    return _dataio.loadjson(st.FILTS_CFG_LOC)
+    return _dataio.loadjson(Path(INGESTION_CONF_DIR, r'filters.json'))
 
 
 def subject_scheme():
     """
     Returns the subject scheme data
     """
-    return _dataio.loadjson(st.SUBJECT_SCHEME_LOC)
+    return _dataio.loadjson(Path(INGESTION_CONF_DIR, r'subject_scheme.json'))
 
 
 def file_format_mapping():
-    return _dataio.loadjson(st.FF_MAPPING_LOC)
+    return _dataio.loadjson(Path(INGESTION_CONF_DIR, r'ff_mapping.json'))
 
 
 def language_mapping():
-    return _dataio.loadjson(st.LANG_MAPPING_LOC)
+    return _dataio.loadjson(Path(INGESTION_CONF_DIR, r'lang_mapping.json'))
 
 
 def epsg_codes():
-    return _dataio.loadjson(st.EPSG_LOC)
+    return _dataio.loadjson(Path(INGESTION_CONF_DIR, r'epsg_codes.json'))
 
 
 def name_to_epsg():
-    return _dataio.loadjson(st.EPSG_NAMES_LOC)
+    return _dataio.loadjson(Path(INGESTION_CONF_DIR, r'name2epsg.json'))

@@ -1,0 +1,36 @@
+{
+    "_general": {
+        "none_strings": [
+            "",
+            "none",
+            "n/a",
+            "undefined",
+            "not available"
+        ],
+        "ignore_startswith": [
+            "see ",
+            "other"
+        ],
+        "ignore_contains": [
+            "unknown",
+            "not specified"
+        ],
+        "now_equivalents": [
+            "present",
+            "current",
+            "now"
+        ]
+    },
+    "issued": {
+        "lt": "now",
+        "gt": "1700-01-01"
+    },
+    "modified": {
+        "lt": "now",
+        "gt": "1700-01-01"
+    },
+    "created": {
+        "lt": "now",
+        "gt": "1700-01-01"
+    }
+}
