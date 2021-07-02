@@ -3126,23 +3126,14 @@ class FormatTranslator(FieldTranslator):
             metadata.translated[self.field_name] = formats
 
 
-def language(candidates):
-    """
-    Translate data about 'language' into the new metadata schema
-    """
-    rules = trl_rules['language']
+class LanguageTranslator(FieldTranslator):
+    field_name = 'language'
 
-    def handle_string(str_):
-        """
-        Converts string data into one or multiple languages
+    def __init__(self, *args, dict_key_priority: list[str], **kwargs):
+        super().__init__(*args, **kwargs)
+        self.dict_key_priority = dict_key_priority
 
-        Arguments:
-            str_ --- str: The string to be converted
-
-        Returns:
-            list --- The detected languages, empty if nothing is found (can
-            still contain duplicates)
-        """
+    def _process_string(self, str_) -> list[str]:
         # First seperate the string:
         str_ = str_.lower()
         if ',' in str_:
@@ -3180,73 +3171,52 @@ def language(candidates):
                 elif decoded in language_mapping:
                     langs.append(language_mapping[decoded])
 
-        return langs
+        if langs:
+            return langs
 
-    def handle_list(list_):
-        """
-        Converts list data into one or multiple languages
-
-        Arguments:
-            list_ --- list: The list to be converted
-
-        Returns:
-            list --- The detected languages, empty if nothing is found (can
-            still contain duplicates)
-        """
+    def _process_dict(self, dict_) -> list[str]:
         langs = []
-        for item in list_:
-            if isinstance(item, str):
-                langs += handle_string(item)
-            elif isinstance(item, dict):
-                langs += handle_dict(item)
-
-        return langs
-
-    def handle_dict(dict_):
-        """
-        Converts dict data into one or multiple languages
-
-        Arguments:
-            dict_ --- dict: The dict to be converted
-
-        Returns:
-            list --- The detected languages, empty if nothing is found (can
-            still contain duplicates)
-        """
-        langs = []
-        for key in rules['dict_key_priority']:
+        for key in self.dict_key_priority:
             if key in dict_:
                 value = dict_[key]
                 if isinstance(value, str):
-                    langs += handle_string(value)
+                    result = self._process_string(value)
                 elif isinstance(value, list):
-                    langs += handle_list(value)
+                    result = self._process_dict(value)
+                else:
+                    continue
 
-        return langs
+                if result is not None:
+                    langs.extend(result)
 
-    languages = []
-    for key in rules['data_priority']:
-        if key in candidates:
-            value = candidates[key]
-            if isinstance(value, str):
-                languages += handle_string(value)
-            elif isinstance(value, list):
-                languages += handle_list(value)
-            elif isinstance(value, dict):
-                languages += handle_dict(value)
-    if languages == []:
-        languages = None
-    else:
-        languages = list(set(languages))
+        if langs:
+            return langs
 
-    return languages
+    def _process_list(self, list_) -> list[str]:
+        langs = []
+        for item in list_:
+            if isinstance(item, str):
+                langs.extend(self._process_string(item))
+            elif isinstance(item, dict):
+                langs.extend(self._process_dict(item))
 
+        if langs:
+            return langs
 
-def sample_size(candidates):
-    """
-    Translate data about 'sampleSize' into the new metadata schema
-    """
-    raise NotImplementedError
+    def translate(self, metadata: ResourceMetadata, **kwargs):
+        """Merge results"""
+        languages = []
+        for field in self.fields:
+            if field not in metadata.structured:
+                continue
+            payload = metadata.structured[field]
+            result = self._process(payload)
+            if result is not None:
+                languages.extend(result)
+
+        if languages:
+            languages = list(set(languages))
+            metadata.translated[self.field_name] = languages
 
 
 def coordinate_system(candidates):

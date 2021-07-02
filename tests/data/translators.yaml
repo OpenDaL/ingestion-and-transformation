@@ -788,9 +788,35 @@ FormatTranslator:
         _translated:
           format:
             - 'JSON'
+      # Test combined string
       - _structured:
           format: 'xlsx,pdf'
         _translated:
           format:
             - XLSX
             - PDF
+LanguageTranslator:
+  - kwargs:
+      fields:
+      - language
+      - lang
+      dict_key_priority:
+      - resource
+      - _content
+    translate_function_tests:
+      # Basic test field with string
+      - _structured:
+          language: 'arabic'
+        _translated:
+          language:
+            - ar
+      # Test deduplication
+      - _structured:
+          language: arabic
+          lang:
+            - resource: en
+            - ar
+        _translated:
+          language:
+            - ar
+            - en
