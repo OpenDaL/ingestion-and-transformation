@@ -776,3 +776,21 @@ TimePeriodTranslator:
             - type: About
               start: '2019-10-01'
               end: '2019-10-05'
+FormatTranslator:
+  - kwargs:
+      fields:
+      - format
+      - mime_type
+    translate_function_tests:
+      # Basic test field with string
+      - _structured:
+          mime_type: 'application/json'
+        _translated:
+          format:
+            - 'JSON'
+      - _structured:
+          format: 'xlsx,pdf'
+        _translated:
+          format:
+            - XLSX
+            - PDF

@@ -3055,16 +3055,11 @@ class TimePeriodTranslator(FieldTranslator):
             metadata.translated[self.field_name] = time_periods
 
 
-def format(candidates):
-    """
-    Translation data about 'format' into the new metadata schema
-    """
-    rules = trl_rules['format']
+class FormatTranslator(FieldTranslator):
+    field_name = 'format'
 
-    def derive_plain_extensions(str_):
-        """
-        Derive one or more file extensions directly from a string
-        """
+    def _derive_plain_extensions(self, str_) -> list[str]:
+        """Derive one or more file extensions from a string"""
         data = []
         # Split by commas and slashes
         parts = re.split(r',|/', str_)
@@ -3081,11 +3076,7 @@ def format(candidates):
                     data.append(new_part)
         return data
 
-    def handle_string(str_):
-        """
-        Convert format string data into the new metadata schema. Returns a list
-        of formats. Empty if nothing valid is found
-        """
+    def _process_string(self, str_) -> list[str]:
         data = []
 
         str_ = str_.lower().replace('zipped ', '').replace(' file', '')
@@ -3096,79 +3087,43 @@ def format(candidates):
             if '(' in str_:
                 matches = between_brackets_regex.findall(str_)
                 for match in matches:
-                    data += derive_plain_extensions(match)
+                    data.extend(self._derive_plain_extensions(match))
             else:
-                data += derive_plain_extensions(str_)
+                data.extend(self._derive_plain_extensions(str_))
 
         return data
 
-    def handle_dict(dict_):
-        """
-        Convert dict data into the new metadata format. Returns a list of
-        formats, empty if nothing is found
-        """
-        raise NotImplementedError
-
-    def handle_list(list_):
-        """
-        Convert format list data into the new metadata schema. Returns a list
-        of formats. Empty if nothing is found
-        """
+    def _process_list(self, list_) -> list[str]:
         data = []
         for item in list_:
             if isinstance(item, str):
-                data += handle_string(item)
+                data.extend(self._process_string(item))
 
         return data
 
-    def handle_payload(payload):
-        """
-        Handle any type of format data, and transform it to the new metadata
-        format
-        """
-        data = []
-
+    def _process(self, payload):
+        """Drop default support for dicts"""
         if isinstance(payload, str):
-            data += handle_string(payload)
+            return self._process_string(payload)
         elif isinstance(payload, list):
-            data += handle_list(payload)
-        # elif isinstance(payload, dict):
-        #     data += handle_dict(payload)
+            return self._process_list(payload)
 
-        return data
+        return []
 
-    formats = []
-    for key in rules['data_priority']:
-        if key in candidates:
-            formats += handle_payload(candidates[key])
+    def translate(self, metadata: ResourceMetadata, **kwargs):
+        """Aggregate results of multiple fields"""
+        formats = []
+        for field in self.fields:
+            if field not in metadata.structured:
+                continue
+            # Instead of passing the current field between the processing
+            # functions, use a class variable.
+            payload = metadata.structured[field]
+            formats.extend(self._process(payload))
 
-    if formats == []:
-        formats = None
-    else:
-        formats = list(set(formats))
-
-    return formats
-
-
-def size(candidates):
-    """
-    Translate data about 'size' into the new metadata schema
-    """
-    raise NotImplementedError
-
-
-def delimiter(candidates):
-    """
-    Translate data about 'delimiter' into the new metadata schema
-    """
-    raise NotImplementedError
-
-
-def fingerprint(candidates):
-    """
-    Translate data about 'fingerprint' into the new metadata schema
-    """
-    raise NotImplementedError
+        if formats:
+            formats = list(set(formats))
+            metadata.translated[self.field_name] = formats
 
 
 def language(candidates):
