@@ -728,3 +728,51 @@ LocationTranslator:
             - geometry:
                 type: envelope
                 coordinates: [[10, 20], [12, 15]]
+TimePeriodTranslator:
+  - kwargs:
+      fields:
+      - temporal
+      - temporal_coverage
+      lt: 2100-01-01T00:00:00Z
+      gt: 0001-01-01T00:00:00Z
+      begin_end_field_pairs:
+      - - temporal_coverage_from
+        - temporal_coverage_to
+      dict_key_priority:
+        start:
+        - start
+        end:
+        - end
+      seperators:
+      - '/'
+      - ' to '
+      - ' until '
+      remove_strings:
+      - 'from '
+    translate_function_tests:
+      # Basic test field with string
+      - _structured:
+          temporal: From October 15th 2019 to October 19th 2019
+        _translated:
+          timePeriod:
+            - type: About
+              start: '2019-10-15'
+              end: '2019-10-19'
+      # Basic test list with dicts/strings, start/end key combinations and
+      # overlap
+      - _structured:
+          temporal_coverage_from: 28 Oct 2019
+          temporal_coverage_to: 29 Oct 2019
+          temporal:
+            - From October 15th 2019 to October 19th 2019
+            - start: '2019-10-01'
+              end: '2019-10-05'
+            - 2019-10-18/2019-10-28
+        _translated:
+          timePeriod:
+            - type: About
+              start: '2019-10-15'
+              end: '2019-10-29'
+            - type: About
+              start: '2019-10-01'
+              end: '2019-10-05'

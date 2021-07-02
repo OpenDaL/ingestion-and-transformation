@@ -2796,66 +2796,60 @@ class LocationTranslator(SchemaValidationMixin, FieldTranslator):
             metadata.translated[self.field_name] = locations
 
 
-def time_period(candidates):
-    """
-    Translate information about the time periods related to a resource
-    """
-    rules = trl_rules['timePeriod']
-    lt_date = rules['children']['start']['lt']
-    gt_date = rules['children']['start']['gt']
-    premove = rules['period_remove']
-    pstart_keys = rules['start_dict_keys']
-    pend_keys = rules['end_dict_keys']
-    seperators = rules['period_seperators']
-    default_type = 'About'
+class TimePeriodTranslator(FieldTranslator):
+    field_name = 'timePeriod'
 
-    class TimePeriod(dict):
-        """
-        Time period object for the new metadata scheme
-        """
+    def __init__(
+            self, *args, lt: datetime.datetime, gt: datetime.datetime,
+            begin_end_field_pairs: list[list[str]], dict_key_priority: dict,
+            seperators: list[str], remove_strings: list[str], **kwargs
+            ):
+        super().__init__(*args, **kwargs)
+        self.lt = lt
+        self.gt = gt
+        self.begin_end_field_pairs = begin_end_field_pairs
+        self.begin_end_field_sets = [
+            set(pair) for pair in begin_end_field_pairs
+        ]
+        self.dict_key_priority = dict_key_priority
+        self.seperators = seperators
+        self.remove_strings = remove_strings
 
-        def __init__(self, startdate, enddate, type_):
-            self.validate_params(startdate, enddate, type_)
-            self.update({
-                'type': type_,
-                'start': _date2str(startdate),
-                'end': _date2str(enddate)
-            })
-            self.starts = startdate
-            self.ends = enddate
+        # Both the 'fields' and field pairs should be used
+        self.translate_from.update(
+            [
+                field for fieldpair in self.begin_end_field_pairs
+                for field in fieldpair
+            ]
+        )
 
-        def validate_params(self, startdate, enddate, type_):
-            if type_ not in ['Valid', 'Collected', 'About']:
-                raise ValueError('Invalid type specified!')
-            elif not isinstance(startdate, datetime.datetime):
-                raise TypeError('Start date not a datetime object')
-            elif not isinstance(enddate, datetime.datetime):
-                raise TypeError('Start date not a datetime object')
-            elif startdate > enddate:
-                raise ValueError('Startdate later than enddate')
+    def _create_timeperiod(
+            self, start: datetime.datetime, end: datetime.datetime
+            ):
+        if end > start and start > self.gt and end < self.lt:
+            return {
+                'type': 'About',
+                'start': _date2str(start),
+                'end': _date2str(end)
+            }
 
-    def handle_string(str_):
-        """
-        Translates string data into a date range. Returns a list with a
-        TimePeriod instance. If data could not be parsed, an empty list is
-        returned
-        """
+    def _process_string(self, str_) -> list[dict]:
         start_date = None
         end_date = None
         s = str_.lower()
-        for rm in premove:
+        for rm in self.remove_strings:
             s = s.replace(rm, '')
         if len(s) > 64:
             return []
         if s.lower().startswith('r/'):
             start_payload = s.split('/')[1]
             end_payload = 'now'
-            start_date = _str2date(start_payload, lt_date, gt_date,
+            start_date = _str2date(start_payload, self.lt, self.gt,
                                    ignore_now=True)
-            end_date = _str2date(end_payload, lt_date, gt_date,
+            end_date = _str2date(end_payload, self.lt, self.gt,
                                  period_end=True)
         else:
-            for sep in seperators:
+            for sep in self.seperators:
                 splitted = s.split(sep)
                 splitted = [s.strip() for s in splitted]
                 if len(splitted) == 2:
@@ -2870,9 +2864,9 @@ def time_period(candidates):
                         start_payload = splitted[0]
                         end_payload = splitted[1]
 
-                        start_date = _str2date(start_payload, lt_date, gt_date,
+                        start_date = _str2date(start_payload, self.lt, self.gt,
                                                ignore_now=True)
-                        end_date = _str2date(end_payload, lt_date, gt_date,
+                        end_date = _str2date(end_payload, self.lt, self.gt,
                                              period_end=True)
 
                         if start_date is not None and end_date is not None:
@@ -2885,7 +2879,7 @@ def time_period(candidates):
                 parts = s.split('/')
                 endswith_duration = duration_regex.match(parts[-1])
                 if start_date is not None and not endswith_duration:
-                    end_date = _str2date('now', lt_date, gt_date,
+                    end_date = _str2date('now', self.lt, self.gt,
                                          period_end=True)
                 elif endswith_duration or (years and len(years) == 1):
                     if endswith_duration:
@@ -2896,7 +2890,7 @@ def time_period(candidates):
                         # Assume a single day/month/year coverage
                         end_payload = start_payload
 
-                    start_date = _str2date(start_payload, lt_date, gt_date,
+                    start_date = _str2date(start_payload, self.lt, self.gt,
                                            ignore_now=True)
 
                     if start_date is None:
@@ -2904,7 +2898,7 @@ def time_period(candidates):
 
                     end_date = None
                     if isinstance(end_payload, str):
-                        end_date = _str2date(end_payload, lt_date, gt_date,
+                        end_date = _str2date(end_payload, self.lt, self.gt,
                                              period_end=True)
                     elif isinstance(end_payload, datetime.timedelta):
                         # In case a duration is parsed
@@ -2913,252 +2907,152 @@ def time_period(candidates):
                     if end_date is None:
                         # Assume now, if no other can be found
                         end_date = _str2date(
-                            'now', lt_date, gt_date, period_end=True
+                            'now', self.lt, self.gt, period_end=True
                         )
 
                 else:
                     return []
 
-        if start_date > end_date:
-            return []
+        tperiod = self._create_timeperiod(start_date, end_date)
+        if tperiod is not None:
+            return [tperiod]
 
-        tperiod = TimePeriod(start_date, end_date, default_type)
+        return []
 
-        return [tperiod]
+    def _process_dict(self, dict_) -> list[dict]:
+        timeperiod_data = {}
 
-    def handle_dict(dict_):
-        """
-        Translates dict data into a date range. Returns a list with a single
-        TimePeriod instance, or an empty list if no suitable data is found
-        """
-        # A valid start date must be available:
-        start_date = None
-        for sdate_key in pstart_keys:
-            if sdate_key in dict_:
-                sdate_value = dict_[sdate_key]
-                if isinstance(sdate_value, str):
-                    start_date = _str2date(dict_[sdate_key], lt_date, gt_date,
-                                           ignore_now=True)
-                    if start_date is not None:
+        for edge in ['start', 'end']:
+            date_kwargs = {
+                'ignore_now': True if edge == 'start' else False,
+                'period_end': True if edge == 'end' else False
+            }
+            edge_date = None
+            for key in self.dict_key_priority[edge]:
+                if key in dict_:
+                    payload = dict_[key]
+                    if isinstance(payload, str):
+                        edge_date = _str2date(
+                            payload, self.lt, self.gt, **date_kwargs
+                        )
+                    elif isinstance(payload, int):
+                        edge_date = _parse_timestamp(
+                            payload, self.lt, self.gt
+                        )
+                    if edge_date is not None:
+                        timeperiod_data[edge] = edge_date
                         break
-                elif isinstance(sdate_value, int):
-                    start_date = _parse_timestamp(sdate_value, lt_date,
-                                                  gt_date)
-                    if start_date is not None:
-                        break
+
+            if edge_date is None:
+                break  # No use to continueing if one of the dates is not found
         else:
-            # If no start date was found, return None
-            return []
+            period = self._create_timeperiod(**timeperiod_data)
+            if period is not None:
+                return [period]
 
-        end_date = None
-        for edate_key in pend_keys:
-            if edate_key in dict_:
-                edate_value = dict_[edate_key]
-                if isinstance(edate_value, str):
-                    end_date = _str2date(edate_value, lt_date, gt_date,
-                                         True)
-                    if end_date is not None:
-                        break
-                elif isinstance(edate_value, int):
-                    end_date = _parse_timestamp(edate_value, lt_date, gt_date)
-                    if end_date is not None:
-                        break
-        else:
-            # If no end date was found, we assume it is now:
-            end_date = _str2date('now', lt_date, gt_date, True)
+        return []
 
-        if start_date > end_date:
-            return []
-
-        tperiod = TimePeriod(start_date, end_date, default_type)
-
-        return [tperiod]
-
-    def handle_list(list_):
-        """
-        Translates list data into a time range. Returns a list of timePeriod
-        instances. In case no data is found, an empty list is returned
-        """
+    def _process_list(self, list_) -> list[dict]:
         data = []
         for item in list_:
-            if isinstance(item, str):
-                data += handle_string(item)
-            elif isinstance(item, dict):
-                data += handle_dict(item)
+            data.extend(self._process(item))
 
         return data
 
-    def handle_payload(payload):
-        """
-        Translates a payload into a date range. Returns a list of TimePeriod
-        instances. In case no data is found, an empty list is returned
-        """
-        data = []
-        if isinstance(payload, str):
-            data += handle_string(payload)
-        elif isinstance(payload, list):
-            data += handle_list(payload)
-        elif isinstance(payload, dict):
-            data += handle_dict(payload)
+    def _process_start_end(self, start_data, end_data) -> dict:
+        """This returns a single time_period rather than an array"""
+        if not (isinstance(start_data, str) and isinstance(end_data, str)):
+            return
 
-        return data
+        start_date = _str2date(start_data, self.lt, self.gt, ignore_now=True)
+        end_date = _str2date(end_data, self.lt, self.gt, period_end=True)
+        if start_date is None:
+            return
+        elif end_date is None:
+            end_date = _now_date()
 
-    def merge_overlapping(time_periods):
-        """
-        Post process a list of time periods, to find overlapping timeperiods
-        and merge these
-        """
-        filtered_periods = []
-        for t_period in time_periods:
-            # Check if there is a complete or partial overlap with a previously
-            # added period:
-            merge_with = []
-            delete_old = []
-            for ind_, f_period in enumerate(filtered_periods):
-                if t_period.starts > f_period.starts:
-                    if t_period.starts > f_period.ends:
-                        # Can be added, so continue
-                        continue
-                    elif t_period.starts == f_period.ends:
-                        # Periods form continous period
-                        # added to list, since long event can link multiple
-                        # together
-                        merge_with.append(ind_)
-                    else:
-                        # t_period.starts < f_period.ends
-                        if t_period.ends > f_period.ends:
-                            # Partial overlap, merge both
-                            merge_with.append(ind_)
-                        elif t_period.ends == f_period.ends:
-                            # Old completely overlaps new, keep old
-                            break
-                        else:
-                            # t_period.ends < f_period.ends
-                            # Old completely overlaps new, keep old
-                            break
-                elif t_period.starts == f_period.starts:
-                    if t_period.ends > f_period.ends:
-                        # New completely overlaps old, delete old, keep new:
-                        delete_old.append(ind_)
-                        # Continue to check if it overlaps with something else:
-                        continue
-                    elif t_period.ends == f_period.ends:
-                        # New exactly matches old, disregard new
-                        break
-                    else:
-                        # t_period.ends < f_period.ends
-                        # Old completely overlaps with new, disregard new
-                        break
-                else:
-                    # t_period.starts < f_period.starts
-                    if t_period.ends > f_period.starts:
-                        if t_period.ends > f_period.ends:
-                            # New completely overlaps old, delete old
-                            delete_old.append(ind_)
-                        elif t_period.ends == f_period.ends:
-                            # New completely overlaps old, delete old
-                            delete_old.append(ind_)
-                        else:
-                            # t_period.ends < f_period.ends:
-                            # Partial overlap, merge both
-                            merge_with.append(ind_)
-                    elif t_period.ends == f_period.starts:
-                        # Both form a continuous period, merge them:
-                        merge_with.append(ind_)
-                    else:
-                        # t_period.ends < f_period.starts
-                        # No overlap, new can be added, so continue
-                        continue
-            else:
-                if merge_with != []:
-                    # If there are also entries in 'delete_old', these have to
-                    # be handled simultaneously, because otherwise indices are
-                    # no longer valid
-                    merge_delete_dict = {'merge': i for i in merge_with}
-                    merge_delete_dict.update(
-                        {'delete': i for i in delete_old}
+        return self._create_timeperiod(start_date, end_date)
+
+    def _overlapping_merged(self, time_periods: list[dict]) -> list[dict]:
+        # Build a dict of overlaps for each index
+        overlap_per_index = {}
+        for i, time_period in enumerate(time_periods):
+            overlap_per_index[i] = []
+            for j, other_period in enumerate(time_periods):
+                if j == i:
+                    continue
+                if (
+                    time_period['start'] <= other_period['end'] and
+                    time_period['end'] >= other_period['start']
+                ):
+                    overlap_per_index[i].append(j)
+
+        # Merge all by following each index, and looking at their overlaps
+        merged_time_periods = []
+        while overlap_per_index:
+            # Build list of all indices that overlap
+            merge_indices = set()
+            i = next(iter(overlap_per_index.keys()))
+            merge_indices.add(i)
+
+            # Go through the chain (e.g. if 1 overlaps with 4 and 5, then
+            # check with which periods 4 and 5 overlap)
+            next_in_chain = [i]
+            while next_in_chain:
+                new_overlap_indices = []
+                for j in next_in_chain:
+                    new_overlap_indices.extend(
+                        overlap_per_index.pop(j)
                     )
-                    merge_delete_dict = dict(sorted(merge_delete_dict.items(),
-                                                    key=lambda x: x[1],
-                                                    reverse=True))
-                    start_dates = []
-                    end_dates = []
-                    for action, ind_ in merge_delete_dict.items():
-                        if action == 'merge':
-                            start_dates.append(filtered_periods[ind_].starts)
-                            end_dates.append(filtered_periods[ind_].ends)
-                        del filtered_periods[ind_]
+                next_in_chain = [
+                    # If it's in merge indices, it was already used
+                    i for i in new_overlap_indices if i not in merge_indices
+                ]
+                merge_indices.update(next_in_chain)
 
-                    start_dates.append(t_period.starts)
-                    end_dates.append(t_period.ends)
+            # Merge the periods at the given indices
+            merged_start = min([
+                time_periods[i]['start'] for i in merge_indices
+            ])
+            merged_end = max([
+                time_periods[i]['end'] for i in merge_indices
+            ])
+            merged_period = {
+                'type': 'About',
+                'start': merged_start,
+                'end': merged_end
+            }
+            merged_time_periods.append(merged_period)
 
-                    merged_sdate = min(start_dates)
-                    merged_edate = max(end_dates)
+        return merged_time_periods
 
-                    filtered_periods.append(TimePeriod(merged_sdate,
-                                                       merged_edate,
-                                                       default_type))
-                elif delete_old != []:
-                    # Only delete_old, so no merge. This means t_period still
-                    # has to be added after deletion of old one
-                    delete_old = sorted(delete_old, reverse=True)
-                    for ind_ in delete_old:
-                        del filtered_periods[ind_]
-                    filtered_periods.append(t_period)
-                else:
-                    # No conflicts were found, so t_period can be added:
-                    filtered_periods.append(t_period)
+    def translate(self, metadata: ResourceMetadata, **kwargs):
+        time_periods = []
 
-        return filtered_periods
-
-    time_period_data = []
-
-    # When there are two seperate keys giving a beginning and end, extract
-    # these data
-    for sdate_key, edate_key in rules['begin_endkeys']:
-        if sdate_key in candidates and isinstance(candidates[sdate_key], str):
-            start_date = _str2date(candidates[sdate_key], lt_date, gt_date,
-                                   ignore_now=True)
-            if start_date is None:
+        available_keys = set(metadata.structured.keys())
+        for i, fieldset in enumerate(self.begin_end_field_sets):
+            if not fieldset.issubset(available_keys):
                 continue
 
-            end_date = None
-            if edate_key in candidates and\
-                    isinstance(candidates[edate_key], str):
-                end_date = _str2date(candidates[edate_key], lt_date, gt_date,
-                                     True)
-            if end_date is None:
-                end_date = _now_date()
+            start_key, end_key = self.begin_end_field_pairs[i]
+            start_payload = metadata.structured[start_key]
+            end_payload = metadata.structured[end_key]
+            time_period = self._process_start_end(start_payload, end_payload)
+            if time_period is not None:
+                time_periods.append(time_period)
 
-            if start_date > end_date:
+        for field in self.fields:
+            if field not in metadata.structured:
                 continue
 
-            time_period_data.append(TimePeriod(start_date, end_date,
-                                               default_type))
+            payload = metadata.structured[field]
+            result = self._process(payload)
+            if result is not None:
+                time_periods.extend(result)
 
-    # Try to find complete period data in the other keys mapped to timePeriod
-    for key in rules['data_priority']:
-        if key in candidates:
-            time_period_data += handle_payload(candidates[key])
-
-    # Since the same period could have been under multiple keys, a check for
-    # Overlapping periods is performed:
-    time_period_data = merge_overlapping(time_period_data)
-
-    # Convert timePeriod objects to dicts:
-    time_period_data = [dict(p) for p in time_period_data]
-
-    if time_period_data == []:
-        time_period_data = None
-
-    return time_period_data
-
-
-def temporal_resolution(candidates):
-    """
-    Translate data about 'temporalResolution' into the new metadata schema
-    """
-    raise NotImplementedError
+        if time_periods:
+            time_periods = self._overlapping_merged(time_periods)
+            metadata.translated[self.field_name] = time_periods
 
 
 def format(candidates):
