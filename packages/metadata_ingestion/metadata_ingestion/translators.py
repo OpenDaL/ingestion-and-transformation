@@ -41,16 +41,6 @@ IGNORE_CONTAINS = trl_rules['_general']['ignore_contains']
 NOW_EQUIVS = set(trl_rules['_general']['now_equivalents'])
 SECOND_ROUND_FUNCTIONS = set(['untranslated'])
 
-class_name_mapping = {
-    'abstractORdescription': 'DescriptionTranslator',
-    'contact': 'ContactTranslator',
-    'coordinateSystem': 'CoordinateSystemTranslator',
-    'created': 'CreatedDateTranslator', 
-    'creator': 'CreatorTranslator',
-    'date_preparser': 'DatePreparser',
-    'format': 'FormatTranslator',
-    'identifier': 'IdentifierTranslater', 'issued': 'IssuedDateTranslator', 'language': 'LanguageTranslator', 'license': 'LicenseTranslator', 'location': 'LocationTranslator', 'maintenance': 'MaintenanceTranslator', 'modified': 'ModifiedDateTranslator', 'otherDates': 'OtherDateTranslator', 'publishedIn': 'PublishedInTranslator', 'publisher': 'PublisherTranslator', 'relation': 'RelationTranslator', 'subject': 'SubjectTranslator', 'timePeriod': 'TimePeriodTranslator', 'title': 'TitleTranslator', 'type': 'TypeTranslator', 'untranslated': 'OriginalLanguageTranslator', 'version': 'VersionTranslator'}
-
 
 class FieldTranslator(ABC):
     """
@@ -3293,97 +3283,6 @@ class CoordinateSystemTranslator(FieldTranslator):
 
         if epsg_codes:
             metadata.translated[self.field_name] = list(set(epsg_codes))
-
-
-def untranslated(candidates, independent_translations):
-    """
-    Put untranslated metadata attributes (e.g. title, description) in the new
-    metadata schema. This requires 'first_round_translations', including a
-    language to work.
-
-    Arguments:
-        candidates --- dict: The candidate key/value pairs, that are to be
-        included in the new metadata schema
-
-        independent_translations --- dict: The translated metadata from the
-        first round (independent) translations. This should contain a
-        'language' key, with one language other than 'en'.
-
-    Returns:
-        list of dicts --- The untranslated data for the resource
-    """
-    rules = trl_rules['untranslated']
-    allowed_keys = set(['title', 'abstractORdescription', 'subject'])
-
-    # Get the relevant language data, used to know what untranslated data
-    # to obtain
-    language = independent_translations.get('language')
-    if language is None:
-        return None
-    elif 'en' in language:
-        if len(language) == 2:
-            language.remove('en')
-            lang = language[0]
-        else:
-            return None
-    else:
-        if len(language) == 1:
-            lang = language[0]
-        else:
-            return None
-
-    untransl_data = {'language': lang}
-
-    # First check if there is a key with full translation data:
-    for key in rules["full_translation_keys"]:
-        if key in candidates:
-            data = candidates[key]
-            if lang in data:
-                lang_data = data[lang]
-                tkey_candidates = {}
-                for key, value in lang_data.items():
-                    tkeys = trl_mapping.get(key, [])
-                    for tkey in tkeys:
-                        if tkey in allowed_keys:
-                            if tkey in tkey_candidates:
-                                tkey_candidates[tkey].update({key: value})
-                            else:
-                                tkey_candidates[tkey] = {key: value}
-
-                for tkey, candidates in tkey_candidates.items():
-                    fname = tkey2fname(tkey)
-                    tkey_value = globals()[fname](candidates)
-                    if tkey_value is not None:
-                        untransl_data[tkey] = tkey_value
-
-    if len(untransl_data) > 1:
-        return untransl_data
-
-    # If nothing was found, try the other keys, and evaluate all of them:
-    tkey_candidates = {}
-    for key, org_key in rules['partial_translation_keys'].items():
-        if key in candidates:
-            data = candidates[key]
-            if lang in data:
-                lang_data = data[lang]
-                tkeys = trl_mapping.get(org_key, [])
-                for tkey in tkeys:
-                    if tkey in allowed_keys:
-                        if tkey in tkey_candidates:
-                            tkey_candidates[tkey].update({key: lang_data})
-                        else:
-                            tkey_candidates[tkey] = {key: lang_data}
-
-    for tkey, candidates in tkey_candidates.items():
-        fname = tkey2fname(tkey)
-        tkey_value = globals()[fname](candidates)
-        if tkey_value is not None:
-            untransl_data[tkey] = tkey_value
-
-    if len(untransl_data) > 1:
-        return untransl_data
-    else:
-        return None
 
 
 def external_reference(candidates):
