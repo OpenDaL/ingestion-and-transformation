@@ -3219,23 +3219,14 @@ class LanguageTranslator(FieldTranslator):
             metadata.translated[self.field_name] = languages
 
 
-def coordinate_system(candidates):
-    """
-    Translate data about 'coordinateSystem' into the new metadata schema
-    """
-    rules = trl_rules['coordinateSystem']
+class CoordinateSystemTranslator(FieldTranslator):
+    field_name = 'coordinateSystem'
 
-    def handle_string(str_):
-        """
-        Converts string data into a coordinate system
+    def __init__(self, *args, dict_key_priority: list[str], **kwargs):
+        super().__init__(*args, **kwargs)
+        self.dict_key_priority = dict_key_priority
 
-        Arguments:
-            str_ --- str: The string to be converted
-
-        Returns:
-            list --- The detected coordinate systems, empty if nothing is
-            found (can still contain duplicates)
-        """
+    def _process_string(self, str_) -> list[int]:
         epsg_list = []
         str_ = str_.lower().strip()
         mentioned_codes = epsg_regex.findall(str_)
@@ -3255,7 +3246,7 @@ def coordinate_system(candidates):
             match = cs_name_regex.match(str_)
             if match:
                 name = match.group(4).lower()
-                if name in name_to_epsg.keys():
+                if name in name_to_epsg:
                     epsg_list.append(name_to_epsg[name])
         elif str_.startswith('wgs') and '84' in str_:
             epsg_list.append(4326)
@@ -3265,95 +3256,43 @@ def coordinate_system(candidates):
 
         return epsg_list
 
-    def handle_dict(dict_):
-        """
-        Converts dict data into a coordinate system
-
-        Arguments:
-            str_ --- str: The dict to be converted
-
-        Returns:
-            list --- The detected coordinate systems, empty if nothing is
-            found (can still contain duplicates)
-        """
+    def _process_dict(self, dict_) -> list[int]:
         epsg_list = []
-        for key in rules['dict_key_priority']:
+        for key in self.dict_key_priority:
             if key in dict_:
                 value = dict_[key]
+                result = None
                 if isinstance(value, str):
-                    epsg_list += handle_string(value)
+                    result = self._process_string(value)
                 elif isinstance(value, int):
                     if value in epsg_codes:
-                        epsg_list.append(value)
-                if epsg_list != []:
+                        result = value
+
+                if result is not None:
+                    epsg_list.extend(result)
                     break
 
         return epsg_list
 
-    epsgs = []
-    for key in rules['data_prority']:
-        if key in candidates:
-            value = candidates[key]
-            if isinstance(value, str):
-                epsgs += handle_string(value)
-            elif isinstance(value, dict):
-                epsgs += handle_dict(value)
+    def _process(self, payload):
+        if isinstance(payload, str):
+            return self._process_string(payload)
+        elif isinstance(payload, dict):
+            return self._process_dict(payload)
+        else:
+            return []
 
-    if epsgs == []:
-        epsgs = None
-    else:
-        epsgs = list(set(epsgs))
+    def translate(self, metadata: ResourceMetadata, **kwargs):
+        """Merge the results from multiple fields"""
+        epsg_codes = []
+        for field in self.fields:
+            if field not in metadata.structured:
+                continue
+            payload = metadata.structured[field]
+            epsg_codes.extend(self._process(payload))
 
-    return epsgs
-
-
-def program_language(candidates):
-    """
-    Translate data about 'programLanguage' into the new metadata schema
-    """
-    raise NotImplementedError
-
-
-def software(candidates):
-    """
-    Translate data about 'software' into the new metadata schema
-    """
-    raise NotImplementedError
-
-
-def platform(candidates):
-    """
-    Translate data about 'platform' into the new metadata schema
-    """
-    raise NotImplementedError
-
-
-def device(candidates):
-    """
-    Translate data about 'device' into the new metadata schema
-    """
-    raise NotImplementedError
-
-
-def quality(candidates):
-    """
-    Translate data about 'quality' into the new metadata schema
-    """
-    raise NotImplementedError
-
-
-def lineage(candidates):
-    """
-    Translate data about 'lineage' into the new metadata schema
-    """
-    raise NotImplementedError
-
-
-def contribution(candidates):
-    """
-    Translate data about 'contribution' into the new metadata schema
-    """
-    raise NotImplementedError
+        if epsg_codes:
+            metadata.translated[self.field_name] = list(set(epsg_codes))
 
 
 def untranslated(candidates, independent_translations):

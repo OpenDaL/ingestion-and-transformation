@@ -820,3 +820,23 @@ LanguageTranslator:
           language:
             - ar
             - en
+CoordinateSystemTranslator:
+  - kwargs:
+      fields:
+      - serviceSpatialReference
+      dict_key_priority:
+      - latestWkid
+    translate_function_tests:
+      # Basic test field with string
+      - _structured:
+          serviceSpatialReference: 'epsg:4326'
+        _translated:
+          coordinateSystem:
+            - 4326
+      # Test dict and name conversion
+      - _structured:
+          serviceSpatialReference:
+            latestWkid: "gcs_wgs_1984"
+        _translated:
+          coordinateSystem:
+            - 4326
