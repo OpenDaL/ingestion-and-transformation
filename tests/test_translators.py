@@ -24,7 +24,7 @@ def test_all_translators_covered():
     all_translators = {
         o for o in dir(translators) if o.endswith('Translator')
         and o != 'FieldTranslator' and o != 'MetadataTranslator'
-        and o != 'DateTranslator'
+        and o != 'DateTranslator' and o != 'MetaTranslator'
     }
 
     assert set(testdata.keys()) == all_translators,\

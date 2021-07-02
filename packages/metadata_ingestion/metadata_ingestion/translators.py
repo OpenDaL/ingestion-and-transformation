@@ -3285,17 +3285,18 @@ class CoordinateSystemTranslator(FieldTranslator):
             metadata.translated[self.field_name] = list(set(epsg_codes))
 
 
-def external_reference(candidates):
+class MetaTranslator:
     """
-    Translate data about 'externalReference' into the new metadata schema. This
-    is merely a passthrough function. The full external reference data was
-    already generated in the structuring stage
+    The MetaTranslator assings the data from the metadata.meta field to the
+    correct fields in 'metadata.translated'
     """
-    rules = trl_rules['externalReference']
-
-    key = rules['passthrough'][0]
-
-    return candidates[key]
+    def translate(self, metadata: ResourceMetadata, **kwargs):
+        metadata.translated['externalReference'] = {
+            'type': 'synchronizedPortalPage',
+            'URL': metadata.meta['url']
+        }
+        metadata.translated['id'] = metadata.meta['globalId']
+        metadata.translated['_source_id'] = metadata.meta['source']['id']
 
 
 def relation(candidates):
