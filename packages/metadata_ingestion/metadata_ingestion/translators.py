@@ -2142,14 +2142,23 @@ class IdentifierTranslator(FieldTranslator):
 
 
 class TypeTranslator(FieldTranslator):
+    """
+    Translator for the 'type' field
+
+    Specific Arguments:
+        type_mapping -- Mapping between types in the source data, and types in
+        the OpenDaL classification
+
+        dict_key_priority -- Dictionairy keys to extract type data from
+    """
     field_name = 'type'
 
     def __init__(
-            self, *args, post_mapping: dict, dict_key_priority: list[str],
+            self, *args, type_mapping: dict, dict_key_priority: list[str],
             **kwargs
             ):
         super().__init__(*args, **kwargs)
-        self.post_mapping = post_mapping
+        self.type_mapping = type_mapping
         self.dict_key_priority = dict_key_priority
 
     def _process_string(self, str_) -> str:
@@ -2184,8 +2193,8 @@ class TypeTranslator(FieldTranslator):
                 rtype = 'Dataset'
 
             if rtype is None:
-                if desc in self.post_mapping:
-                    rtype = self.post_mapping[desc]
+                if desc in self.type_mapping:
+                    rtype = self.type_mapping[desc]
 
             if rtype is None and ':' in desc:
                 rtype = self._process_string(desc.split(':')[-1])
@@ -2243,6 +2252,14 @@ class TypeTranslator(FieldTranslator):
 
 
 class SubjectTranslator(SchemaValidationMixin, FieldTranslator):
+    """
+    Translator for the Subject data
+
+    Specific Arguments:
+        source_max_size -- The maximum size of the source date
+
+        dict_key_priority -- The dict keys to extract subject data from
+    """
     field_name = 'subject'
 
     def __init__(
@@ -2363,6 +2380,16 @@ class SubjectTranslator(SchemaValidationMixin, FieldTranslator):
 
 
 class LocationTranslator(SchemaValidationMixin, FieldTranslator):
+    """
+    Translator for location data
+
+    Specific Arguments:
+        bbox_field_pairs -- A list of pairs of field names. A pair is a list of
+        4 field names, in the order west, south, east, north, that together
+        contain the data for a bounding box
+
+        bbox_key_pairs -- Same as above, but for keys inside dictionary data
+    """
     field_name = 'location'
 
     def __init__(
@@ -2787,6 +2814,27 @@ class LocationTranslator(SchemaValidationMixin, FieldTranslator):
 
 
 class TimePeriodTranslator(FieldTranslator):
+    """
+    Translator for time period data
+
+    Specific arguments:
+        lt -- Max date should be lower than this
+        
+        gt -- Min date should be bigger than this
+
+        begin_end_field_pairs -- List of field pairs. A field pair is a list
+        with the names of the fields containing the start and the end data
+
+        dict_key_priority -- A dictionary with the keys 'start' and 'end',
+        each one having as value a list of dict-keys that either resemble a
+        start or an end of a period
+
+        seperators -- List of seperators that may be between the start and the
+        end-date, in case the data is a string
+
+        remove_strings -- If any of the strings in this list is in string data,
+        remove it before further processing of the data
+    """
     field_name = 'timePeriod'
 
     def __init__(
@@ -3117,6 +3165,12 @@ class FormatTranslator(FieldTranslator):
 
 
 class LanguageTranslator(FieldTranslator):
+    """
+    Translator for Language data
+
+    Specific Arguments:
+        dict_key_priority -- The dictionary keys that may contain language data
+    """
     field_name = 'language'
 
     def __init__(self, *args, dict_key_priority: list[str], **kwargs):
@@ -3210,6 +3264,13 @@ class LanguageTranslator(FieldTranslator):
 
 
 class CoordinateSystemTranslator(FieldTranslator):
+    """
+    Coordinate System Translator
+
+    Specific Arguments:
+        dict_key_priority -- The dict keys that may contain coordinate system
+        descriptions
+    """
     field_name = 'coordinateSystem'
 
     def __init__(self, *args, dict_key_priority: list[str], **kwargs):

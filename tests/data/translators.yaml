@@ -574,7 +574,7 @@ TypeTranslator:
       fields:
       - type
       - dataType
-      post_mapping:
+      type_mapping:
         timeseries: Dataset:Timeseries
         file: Dataset
         film: Dataset:Video
