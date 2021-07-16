@@ -6,7 +6,7 @@ import logging
 import argparse
 from pathlib import Path
 
-from metadata_ingestion import analyze, _dataio
+from metadata_ingestion import analyze, dataio
 
 
 def is_valid_folder(parser, dirloc):
@@ -47,7 +47,7 @@ if __name__ == '__main__':
     logger.setLevel(logging.INFO)
     logger.addHandler(logging.StreamHandler())
 
-    all_files = sorted(_dataio.list_files(in_folder, 'jsonl'))
+    all_files = sorted(dataio.list_files(in_folder, 'jsonl'))
     nr_of_files = len(all_files)
     for ind_, file_loc in enumerate(all_files):
         analyze_file(file_loc)

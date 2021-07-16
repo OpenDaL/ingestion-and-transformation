@@ -152,7 +152,8 @@ class MetadataTranslator:
         config -- dictionary that maps original field names to preparsers or
         translators
     """
-    def __init__(self, config: dict):
+    def __init__(self):
+        config = _loadcfg.translators()
         # Initilialize the pre-parsers
         self._preparsers = []
         for classname, kwargs in config['preparsers'].items():
@@ -188,7 +189,7 @@ class MetadataTranslator:
                     translator_data
                 )
 
-        for translator in self.ordered_translators:
+        for translator in self._ordered_translators:
             kwargs = translate_kwargs[translator.__class__.__name__]
             translator.translate(metadata, **kwargs)
 

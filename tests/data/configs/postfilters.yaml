@@ -1,0 +1,5 @@
+# File contains the settings for postfiltering entries based on the values for
+# specific keys
+publisher:
+    name:
+        - 'University of Southern California Digital Library (USC.DL)' # Only has historic images and the like

@@ -18,7 +18,7 @@ import time
 import aiohttp
 import xmltodict
 
-from . import settings, _dataio, exceptions, _aux
+from . import settings, dataio, exceptions, _aux
 
 NO_RETRY_CODES = {
     401: 'Unauthorized',
@@ -257,12 +257,12 @@ class Harvester:
         remove the .INCOMPLETE designation
         """
         out_loc = Path(self.output_path, self.output_uid + '.jsonl.INCOMPLETE')
-        _dataio.savejsonlines(data, out_loc, mode=self.write_mode)
+        dataio.savejsonlines(data, out_loc, mode=self.write_mode)
         self.write_mode = 'a'
         if last:
             # Rename to indicate completion
             rename_to = Path(self.output_path, self.output_uid + '.jsonl')
-            _dataio.rename_if_exists(out_loc, rename_to)
+            dataio.rename_if_exists(out_loc, rename_to)
 
     def retry_on_fail(slf=None, retry_on=()):
         """

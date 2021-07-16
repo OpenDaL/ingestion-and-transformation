@@ -16,17 +16,13 @@ class ResourceMetadata:
         source_id --- str: The source_id for the harvested data
     """
 
-    def __init__(self, harvested, source_id):
+    def __init__(self, harvested):
         self.harvested = copy.deepcopy(harvested)
-        # Below can be used for debugging, making sure there's an original
-        # self.harvested_original = copy.deepcopy(harvested)
         self.structured = {}
         self.translated = {}
         self.is_filtered = False  # can be set in any step of the process
         self.meta = {
-            'source': {
-                'id': source_id
-            }
+            'source': {}
         }
 
     def add_structured_legacy_fields(self):
@@ -40,18 +36,14 @@ class ResourceMetadata:
             }
         self.structured['_dplatform_uid'] = self.meta['localId']
 
-    def validate_structured():
-        """
-        Function to validate whether all the required meta components were
-        added after structuring, and whether structured is not empty
-        """
-        # TODO
-        raise NotImplementedError()
-
-    def validate_translated():
-        """
-        Validate according to the metadata schema. Should be called after
-        translation was run
-        """
-        # TODO
-        raise NotImplementedError()
+    def get_full_data(self):
+        header_metadata = {
+            'id': self.meta['globalId'],
+            'externalReference': {
+                'type': 'synchronizedPortalPage',
+                'URL': self.meta['url']
+            },
+            '_dplatform_uid': self.meta['localId'],
+            '_source_id': self.meta['source']['id'],
+        }
+        return {**header_metadata, **self.translated}

@@ -22,7 +22,7 @@ The structure of this package is as follows:
     raw/structured data, to help in the translation stage
     * _[\_aux](metadata_ingestion/_aux.py)_: Auxiliary/Helper functions used by
     multiple sub-modules
-    * _[\_dataio](metadata_ingestion/_dataio.py)_: Functions for IO to local
+    * _[\dataio](metadata_ingestion/dataio.py)_: Functions for IO to local
     file system
     * _[\_loadcfg](metadata_ingestion/_loadcfg.py)_: Functions to load
     configuration files used by the package

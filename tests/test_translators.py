@@ -40,7 +40,7 @@ def test_translators():
         for case in testcases:
             translator = TranslatorClass(**case['kwargs'])
             for test in case['translate_function_tests']:
-                metadata = resource.ResourceMetadata({}, '')
+                metadata = resource.ResourceMetadata({})
                 metadata.structured = test['_structured']
                 translator.translate(metadata)
                 compare_output(

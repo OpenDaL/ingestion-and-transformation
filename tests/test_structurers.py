@@ -2,7 +2,7 @@
 """
 Contains the tests for the structurers
 """
-from metadata_ingestion import structurers
+from metadata_ingestion import structurers, resource
 from helpers import load_data, compare_output
 
 testdata = load_data('structurers.yaml')
@@ -29,7 +29,8 @@ def test_structurers():
         StructurerClass = getattr(structurers, structurer_name)
         for test in tests:
             structurer = StructurerClass(*test['args'], **test['kwargs'])
-            metadata = structurer.structure(test['input'])
+            metadata = resource.ResourceMetadata(test['input'])
+            structurer.structure(metadata)
             compare_output(
                 metadata.structured,
                 test['output']['structured'],

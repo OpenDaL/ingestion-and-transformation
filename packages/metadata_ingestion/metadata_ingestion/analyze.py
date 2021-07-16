@@ -9,7 +9,7 @@ import os
 import re
 import math
 
-from metadata_ingestion import _dataio, _loadcfg, structure
+from metadata_ingestion import dataio, _loadcfg, structure
 
 CALCULATE_LEN_FOR = set(['list', 'dict'])
 
@@ -233,7 +233,7 @@ def single_file(in_fileloc, structure_data=False, out_folder=None,
     analysis_results = _init_analysis_results(platform_id)
 
     # Analyze key/value pairs
-    for ind_, entry in enumerate(_dataio.iterate_jsonlines(in_fileloc)):
+    for ind_, entry in enumerate(dataio.iterate_jsonlines(in_fileloc)):
         if load_first is not None and ind_ == load_first:
             break
         elif exclude_indices is not None and ind_ in exclude_indices:
@@ -265,7 +265,7 @@ def single_file(in_fileloc, structure_data=False, out_folder=None,
     if out_folder:
         out_fn = 'analysis_' + filename
         out_fileloc = os.path.join(out_folder, out_fn)
-        _dataio.savejson(analysis_results, out_fileloc)
+        dataio.savejson(analysis_results, out_fileloc)
 
     return analysis_results
 
@@ -281,7 +281,7 @@ def merge_to_examples(in_dir, out_fileloc=None, min_count=None):
                       fn.endswith('.json')]
 
     for fileloc in all_json_files:
-        analysis_data = _dataio.loadjson(fileloc)
+        analysis_data = dataio.loadjson(fileloc)
 
         merged_data['full_entries'].update(analysis_data['full_entries'])
 
@@ -329,7 +329,7 @@ def merge_to_examples(in_dir, out_fileloc=None, min_count=None):
     _clean_unreferenced_entries(merged_data)
 
     if out_fileloc is not None:
-        _dataio.savejson(merged_data, out_fileloc)
+        dataio.savejson(merged_data, out_fileloc)
 
     return merged_data
 
@@ -372,7 +372,7 @@ def data_samples_for_key(in_fileloc, keyname, data_format=None,
     data_samples = []
     data_inds = []
     full_entries = []
-    for ind_, dat in enumerate(_dataio.iterate_jsonlines(in_fileloc)):
+    for ind_, dat in enumerate(dataio.iterate_jsonlines(in_fileloc)):
         struc_entry = dat
         if data_format is not None:
             struc_entry = structure.single_entry(dat, data_format)
@@ -433,7 +433,7 @@ def single_file_tkey_samples(in_fileloc, tkeyname, data_format=None,
     data_samples = []
     data_inds = []
     full_entries = []
-    for ind_, dat in enumerate(_dataio.iterate_jsonlines(in_fileloc)):
+    for ind_, dat in enumerate(dataio.iterate_jsonlines(in_fileloc)):
         struc_entry = dat
         if data_format is not None:
             struc_entry = structure.single_entry(dat, data_format)
@@ -482,7 +482,7 @@ def analysis_file_tkey_samples(in_fileloc, tkeyname):
     data_samples = []
     full_entries = []
 
-    analysis_data = _dataio.loadjson(in_fileloc)
+    analysis_data = dataio.loadjson(in_fileloc)
 
     for portal, entries in analysis_data['full_entries'].items():
         for ind_, struc_entry in entries.items():
@@ -511,7 +511,7 @@ def analysis_file_key_samples(in_fileloc, keyname):
     data_samples = []
     full_entries = []
 
-    analysis_data = _dataio.loadjson(in_fileloc)
+    analysis_data = dataio.loadjson(in_fileloc)
 
     for portal, entries in analysis_data['full_entries'].items():
         for ind_, struc_entry in entries.items():

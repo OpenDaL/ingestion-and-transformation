@@ -10,7 +10,7 @@ import datetime
 import re
 from pathlib import Path
 
-from metadata_ingestion import _dataio
+from metadata_ingestion import dataio
 from metadata_ingestion.settings import INGESTION_CONF_DIR
 
 date_regex = re.compile(r'^\d{4}-\d{2}-\d{2}$')
@@ -20,7 +20,7 @@ def sources():
     """
     Returns the list of metadata sources
     """
-    return _dataio.loadyaml(Path(INGESTION_CONF_DIR, r'sources.yaml'))
+    return dataio.loadyaml(Path(INGESTION_CONF_DIR, r'sources.yaml'))
 
 
 def postfilters():
@@ -28,7 +28,7 @@ def postfilters():
     Returns the list of metadata sources
     """
     # Convert lowest level to sets
-    postfilters = _dataio.loadyaml(
+    postfilters = dataio.loadyaml(
         Path(INGESTION_CONF_DIR, r'postfilters.yaml')
     )
     postfilters_sets = {}
@@ -46,7 +46,7 @@ def translation():
     """
     Returns the translation configuration data
     """
-    return _dataio.loadjson(Path(INGESTION_CONF_DIR, r'translation.json'))
+    return dataio.loadjson(Path(INGESTION_CONF_DIR, r'translation.json'))
 
 
 def translation_rules():
@@ -73,7 +73,7 @@ def translation_rules():
                 if isinstance(ddata, str) and date_regex.match(ddata):
                     requirements[key] = str_to_date(ddata)
 
-    data = _dataio.loadjson(
+    data = dataio.loadjson(
         Path(INGESTION_CONF_DIR, r'translation_rules.json')
     )
 
@@ -88,31 +88,40 @@ def translation_rules():
     return data
 
 
+def translators():
+    """
+    Returns the translators.yaml config data
+    """
+    return dataio.loadyaml(
+        Path(INGESTION_CONF_DIR, r'translators.yaml')
+    )
+
+
 def filters():
     """
     Returns the filter configuration data
     """
-    return _dataio.loadjson(Path(INGESTION_CONF_DIR, r'filters.json'))
+    return dataio.loadjson(Path(INGESTION_CONF_DIR, r'filters.json'))
 
 
 def subject_scheme():
     """
     Returns the subject scheme data
     """
-    return _dataio.loadjson(Path(INGESTION_CONF_DIR, r'subject_scheme.json'))
+    return dataio.loadjson(Path(INGESTION_CONF_DIR, r'subject_scheme.json'))
 
 
 def file_format_mapping():
-    return _dataio.loadjson(Path(INGESTION_CONF_DIR, r'ff_mapping.json'))
+    return dataio.loadjson(Path(INGESTION_CONF_DIR, r'ff_mapping.json'))
 
 
 def language_mapping():
-    return _dataio.loadjson(Path(INGESTION_CONF_DIR, r'lang_mapping.json'))
+    return dataio.loadjson(Path(INGESTION_CONF_DIR, r'lang_mapping.json'))
 
 
 def epsg_codes():
-    return _dataio.loadjson(Path(INGESTION_CONF_DIR, r'epsg_codes.json'))
+    return dataio.loadjson(Path(INGESTION_CONF_DIR, r'epsg_codes.json'))
 
 
 def name_to_epsg():
-    return _dataio.loadjson(Path(INGESTION_CONF_DIR, r'name2epsg.json'))
+    return dataio.loadjson(Path(INGESTION_CONF_DIR, r'name2epsg.json'))

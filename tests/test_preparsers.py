@@ -30,7 +30,7 @@ def test_preparsers():
         for case in testcases:
             preparser = PreparserClass(**case['kwargs'])
             for test in case['preparse_function_tests']:
-                metadata = resource.ResourceMetadata({}, '')
+                metadata = resource.ResourceMetadata({})
                 metadata.structured = test['_structured_before']
                 return_data = preparser.preparse(metadata)
                 compare_output(metadata.structured, test['_structured_after'])

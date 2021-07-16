@@ -16,7 +16,7 @@ from typing import Union
 from urllib.parse import quote_plus
 
 from metadata_ingestion.resource import ResourceMetadata
-from metadata_ingestion import _aux
+from metadata_ingestion import _aux, sources
 
 from metadata_ingestion.settings import REP_TEXTKEY
 
@@ -55,25 +55,23 @@ class Structurer(ABC):
         """
         metadata.structured = metadata.harvested
 
-    def structure(self, harvested_data: dict) -> ResourceMetadata:
+    def structure(self, metadata: ResourceMetadata):
         """
         Flatten and structure harvested data to prepare it for translation
 
         Arguments:
-            harvested_data -- One line of JSON data written by a harvester
+            metadata -- A ResourceMetadata object with harvested data
         """
-        metadata = ResourceMetadata(harvested_data, self.source_id)
         self._fill_structured(metadata)
+        metadata.meta['source']['id'] = self.source_id
         if metadata.is_filtered:
-            return metadata
+            return
         self._process(metadata)
 
         if metadata.is_filtered:
-            return metadata
+            return
         else:
             metadata.structured = _aux.remove_empty_keys(metadata.structured)
-
-        return metadata
 
     @abstractmethod
     def _process(self, metadata: ResourceMetadata):
@@ -82,6 +80,21 @@ class Structurer(ABC):
         subclasses and Mixin classes
         """
         pass
+
+
+def get_structurer(source_id: str) -> Structurer:
+    """
+    Factory method to get a configured structurer for the a specific source
+    id
+
+    Arguments:
+        source_id -- The Id of a source configured in sources.yaml
+    """
+    source_data = sources[source_id]
+    structurer_class_name = source_data['structurer']
+    structurer_kwargs = source_data.get('structurer_kwargs', {})
+
+    return globals()[structurer_class_name](source_id, **structurer_kwargs)
 
 
 # MIXIN CLASSES: These add functionlity to the _process function

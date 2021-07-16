@@ -3,21 +3,14 @@
 Script that structures, translates and post_processes harvested data stored
 in json-lines files
 """
-import os
 import re
-import json
 from pathlib import Path
 import time
 import argparse
-import logging
-from logging import handlers
-import copy
 
-from metadata_ingestion import _loadcfg, structurers, translate, post_process
-
-MEMORIZE = 2000
-
-sources = _loadcfg.sources()
+from metadata_ingestion import (
+    structurers, translators, post_processors, resource, dataio
+)
 
 filename_regex = re.compile(
     r'(.*)_\d{4}-\d{2}-\d{2}T\d{2}.\d{2}.\d{2}Z?\.(jl|jsonl)$'
@@ -48,117 +41,50 @@ def is_valid_output_file(parser, fileloc):
         return path
 
 
-def process_data(
-        in_data, pinfo, out_loc, method, logger, structurer, dplatform_id
+def process_data_file(
+        input_loc, output_dir, default_steps, store_empty=False
         ):
-    """
-    Process the list of data
-    """
-    global last_log_time
-
-    out_data = []
-    reject_data = []
-    for i, payload in enumerate(in_data):
-        pinfo['total_processed'] += 1
-        line_nr = pinfo['total_processed']
-        if time.time() - last_log_time > 10:
-            logger.info('Processed {} lines'.format(line_nr))
-            last_log_time = time.time()
-        try:
-            # Structuring
-            harvested = copy.deepcopy(payload)  # allows to save original
-            metadata = structurer.structure(harvested)
-
-            if metadata.is_filtered:
-                # Allows for filtering items
-                reject_data.append([payload, None])
-                continue
-            else:
-                metadata.add_structured_legacy_fields()
-
-            structured_entry = metadata.structured
-
-            # Translation
-            translated_entry =\
-                translate.single_entry(structured_entry,
-                                       dplatform_id)
-
-            # Post Processing
-            if enable_post_filter and\
-                    post_process.is_filtered(translated_entry):
-                reject_data.append([payload, translated_entry])
-                continue
-            else:
-                post_process.optimize(translated_entry)
-                post_process.score(translated_entry)
-
-        except Exception:
-            logger.exception(
-                'An exception occured at line {}, with payload:\n{}'.format(
-                    line_nr,
-                    payload
-                )
-            )
-            raise
-
-        out_data.append(translated_entry)
-        pinfo['result_count'] += 1
-
-    in_data.clear()
-
-    with open(out_loc, method, encoding='utf8') as jsonl_file:
-        for dat in out_data:
-            jsonl_file.write(
-                json.dumps(dat, ensure_ascii=False) + '\n'
-            )
-
-    if rejects_loc:
-        with open(rejects_loc, method, encoding='utf8') as jsonl_file:
-            for dat in reject_data:
-                jsonl_file.write(
-                    json.dumps(dat, ensure_ascii=False) + '\n'
-                )
-
-
-def process_data_file(input_loc, output_dir):
     """
     Processes a single file of data, halts on errors
     """
-    logger.info('Start processing')
+    print('Start processing')
 
-    filename = os.path.split(input_loc)[-1]
-    fn_id = filename_regex.match(filename).group(1)
-    out_loc = os.path.join(output_dir, filename)
+    filename = input_loc.name
+    source_id = filename_regex.match(filename).group(1)
+    out_loc = Path(output_dir, filename)
 
-    source_data = [s for s in sources if s['id'] == fn_id][0]
-    structurer_kwargs = source_data.get('structurer_kwargs', {})
-    structurer_name = source_data['structurer']
+    structurer = structurers.get_structurer(source_id)
 
-    structurer = getattr(structurers, structurer_name)(
-        fn_id, **structurer_kwargs
-    )
+    processing_steps = [structurer.structure] + default_steps
 
-    dplatform_id = source_data['id']
-
-    with open(input_loc, 'r', encoding='utf8') as jsonlinesfile:
-        in_data = []
-        method = 'w'
-        process_info = {'total_processed': 0, 'result_count': 0}
-        for line in jsonlinesfile:
-            in_data.append(json.loads(line))
-            nr_collected = len(in_data)
-            if nr_collected == MEMORIZE:
-                process_data(in_data, process_info, out_loc, method, logger,
-                             structurer, dplatform_id)
-                method = 'a'
+    write_queue = []
+    write_mode = 'w'
+    count = 0
+    print_time = time.time()
+    for item in dataio.iterate_jsonlines(input_loc):
+        count += 1
+        metadata = resource.ResourceMetadata(item)
+        for apply_step in processing_steps:
+            apply_step(metadata)
+            if metadata.is_filtered:
+                if store_empty:
+                    write_queue.append(None)
+                break
         else:
-            nr_collected = len(in_data)
-            process_data(in_data, process_info, out_loc, method, logger,
-                         structurer, dplatform_id)
-        logger.info('finished processing, processed {} lines, yielding {} results'.format(
-            process_info['total_processed'],
-            process_info['result_count']
-        ))
+            write_queue.append(
+                metadata.get_full_data()
+            )
+
+        if (time.time() - print_time) > 10:
+            print('Processed {} items'.format(count))
+            print_time = time.time()
+
+        if len(write_queue) == MEMORIZE:
+            dataio.savejsonlines(write_queue, out_loc, mode=write_mode)
+            write_mode = 'a'
+            write_queue = []
+    else:
+        dataio.savejsonlines(write_queue, out_loc, mode=write_mode)
 
 
 if __name__ == '__main__':
@@ -167,7 +93,7 @@ if __name__ == '__main__':
         description="Process data from a single portal into the OpenDaL format"
     )
     aparser.add_argument(
-        "in_file",
+        "input",
         help="The input (harvested) data file",
         type=lambda x: is_valid_file(aparser, x)
     )
@@ -183,46 +109,41 @@ if __name__ == '__main__':
             " what's translated"
         ),
         action="store_false",
-        dest='post_filter'
+        dest='enable_filters'
     )
 
     aparser.add_argument(
-        "--rejects-file",
-        help=(
-            "Save any data filtered in structuring or post processing to this"
-            " location (JSON lines file)"
-        ),
-        dest='rejects_loc',
-        type=lambda x: is_valid_output_file(aparser, x)
+        "--store-empty",
+        help="If items are filtered, store 'null'",
+        action="store_true"
+    )
+
+    aparser.add_argument(
+        "--batch-size",
+        help="Process data in batches of this size (default=2000)",
+        type=int,
+        default=2000
     )
 
     # Get arguments
     args = aparser.parse_args()
-    in_loc = args.in_file
-    out_dir = args.out_folder
-    enable_post_filter = args.post_filter
-    rejects_loc = args.rejects_loc
 
-    if rejects_loc and not enable_post_filter:
-        print(
-            'WARNING: Post filter disabled. Rejects file will only contain'
-            ' rejects from structuring stage'
-        )
+    translator = translators.MetadataTranslator()
+    post_processor = post_processors.MetadataPostProcessor(
+        enable_filters=args.enable_filters
+    )
 
-    log_loc = os.path.join(out_dir, 'processing.log')
-    logger = logging.getLogger()
-    handler = handlers.RotatingFileHandler(
-        log_loc, maxBytes=1048576, backupCount=4
-    )
-    formatter = logging.Formatter(
-        '%(asctime)s | %(levelname)-10s | %(name)s: %(message)s'
-    )
-    handler.setFormatter(formatter)
-    handler.setLevel(logging.INFO)
-    logger.setLevel(logging.INFO)
-    logger.addHandler(handler)
+    default_steps = [
+        translator.translate,
+        post_processor.post_process
+    ]
 
     # Set start time, to be able to print progress every 10 seconds
     last_log_time = time.time()
 
-    process_data_file(in_loc, out_dir)
+    MEMORIZE = args.batch_size
+
+    process_data_file(
+        args.input, args.out_folder, default_steps,
+        store_empty=args.store_empty,
+    )
