@@ -43,7 +43,7 @@ class ResourceMetadata:
                 'type': 'synchronizedPortalPage',
                 'URL': self.meta['url']
             },
-            '_dplatform_uid': self.meta['localId'],
             '_source_id': self.meta['source']['id'],
+            '_metadata_scores': self.meta['scores'],
         }
         return {**header_metadata, **self.translated}

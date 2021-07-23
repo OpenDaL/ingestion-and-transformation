@@ -48,7 +48,7 @@ class Filter(PostProcessor):
 
     def _has_sparse_metadata(self, translated_metadata: dict) -> bool:
         return (
-            'abstractORdescription' not in translated_metadata and
+            'description' not in translated_metadata and
             'subject' not in translated_metadata and
             'location' not in translated_metadata
         )
