@@ -61,19 +61,23 @@ def process_data_file(
     write_mode = 'w'
     count = 0
     print_time = time.time()
-    for item in dataio.iterate_jsonlines(input_loc):
+    for i, item in enumerate(dataio.iterate_jsonlines(input_loc)):
         count += 1
-        metadata = resource.ResourceMetadata(item)
-        for apply_step in processing_steps:
-            apply_step(metadata)
-            if metadata.is_filtered:
-                if store_empty:
-                    write_queue.append(None)
-                break
-        else:
-            write_queue.append(
-                metadata.get_full_data()
-            )
+        try:
+            metadata = resource.ResourceMetadata(item)
+            for apply_step in processing_steps:
+                apply_step(metadata)
+                if metadata.is_filtered:
+                    if store_empty:
+                        write_queue.append(None)
+                    break
+            else:
+                write_queue.append(
+                    metadata.get_full_data()
+                )
+        except Exception:
+            print('At index {}:'.format(i))
+            raise
 
         if (time.time() - print_time) > 10:
             print('Processed {} items'.format(count))
