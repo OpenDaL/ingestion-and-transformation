@@ -2117,14 +2117,14 @@ class IdentifierTranslator(FieldTranslator):
     def _process_string(self, str_):
         lstr = str_.lower()
         if lstr == '':
-            return None
+            return
         elif lstr.startswith('10.') or 'doi' in lstr:
             match = doi_regex.match(str_)
-            data = {'type': 'DOI', 'value': match.group(7)} if match else None
+            return {'type': 'DOI', 'value': match.group(7)} if match else None
         elif str_[0].isdigit() or 'isbn' in lstr:
-            data = self._extract_isbn(str_)
-
-        return data
+            return self._extract_isbn(str_)
+        else:
+            return
 
     def _process_dict(self, dict_):
         for key in self.dict_key_priority:
