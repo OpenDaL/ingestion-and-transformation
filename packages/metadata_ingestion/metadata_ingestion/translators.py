@@ -184,7 +184,7 @@ class MetadataTranslator:
         translate_kwargs = copy.deepcopy(self._base_translate_kwargs)
         for preparser in self._preparsers:
             preparsed_data = preparser.preparse(metadata)
-            for translator_name, translator_data in preparsed_data:
+            for translator_name, translator_data in preparsed_data.items():
                 translate_kwargs[translator_name]['preparsed_data'].update(
                     translator_data
                 )
