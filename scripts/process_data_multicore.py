@@ -6,24 +6,43 @@ in json-lines files
 import os
 import re
 import json
-from multiprocessing import Process, Queue
+import multiprocessing
 import argparse
 from pathlib import Path
-import copy
 import logging
 from logging import handlers
 
-from metadata_ingestion import _loadcfg, structurers, translate, post_process
+from metadata_ingestion import (
+    structurers, translators, post_processors, resource
+)
 
 MEMORIZE = 5000
 
 LOG_LEVEL = logging.INFO
 
-sources = _loadcfg.sources()
-
 filename_regex = re.compile(
     r'(.*)_\d{4}-\d{2}-\d{2}T\d{2}.\d{2}.\d{2}Z?\.(jl|jsonl)$'
 )
+
+
+class StructurerCache():
+    """
+    Cache structurers so they do not need to be constructed for each
+    item
+    """
+    def __init__(self) -> None:
+        self._structurers = {}
+
+    def get(self, source_id: str) -> structurers.Structurer:
+        # Using try except is fastest, since it will only fail once, for
+        # the first item processed
+        try:
+            return self._structurers[source_id]
+        except KeyError:
+            self._structurers[source_id] = structurers.get_structurer(
+                source_id
+            )
+            return self._structurers[source_id]
 
 
 def is_valid_folder(parser, dirloc):
@@ -62,64 +81,52 @@ def process_data(inqueue, outqueue, logqueue):
     Process the list of data
     """
     logger = get_process_logger(logqueue)
-    structurer_cache = {}
+    structurer_cache = StructurerCache()
+
+    translator = translators.MetadataTranslator()
+    post_processor = post_processors.MetadataPostProcessor()
+
+    default_steps = [
+        translator.translate,
+        post_processor.post_process
+    ]
 
     while True:
         bdata = inqueue.get()
 
         if bdata.get('close'):
-            if not inqueue.empty():
-                logger.warning(
-                    'Close command on queue size: {}!'.format(inqueue.qsize())
-                )
+            logger.info(
+                'Close command received at queue size: {}!'.format(
+                    inqueue.qsize()
+                ),
+            )
             break
 
-        dplatform_id = bdata['source']['id']
+        structurer = structurer_cache.get(bdata['source']['id'])
 
-        # Since this only happens on the first access,
-        # it's more efficient to handle the error, than
-        # to check for the key
-        try:
-            structurer = structurer_cache[dplatform_id]
-        except KeyError:
-            s_kwargs = bdata['source']['structurer_kwargs']
-            s_name = bdata['source']['structurer']
-            structurer = getattr(structurers, s_name)(
-                dplatform_id, **s_kwargs
-            )
-            structurer_cache[dplatform_id] = structurer
+        processing_steps = [structurer.structure] + default_steps
 
         processed_batch = []
         for line_nr, hdat in bdata['data']:
             try:
-                # Structuring
-                metadata = structurer.structure(hdat)
-
-                if metadata.is_filtered:
-                    continue
+                metadata = resource.ResourceMetadata(hdat)
+                for apply_step in processing_steps:
+                    apply_step(metadata)
+                    if metadata.is_filtered:
+                        break
                 else:
-                    metadata.add_structured_legacy_fields()
-
-                # Translation
-                translated_entry =\
-                    translate.single_entry(metadata.structured,
-                                           dplatform_id)
-
-                # Post Processing
-                if post_process.is_filtered(translated_entry):
-                    continue
-                else:
-                    post_process.optimize(translated_entry)
-                    post_process.score(translated_entry)
-
+                    processed_batch.append(
+                        metadata.get_full_data()
+                    )
             except Exception:
                 logger.exception(
-                    'The following exception occured at line {}'.format(
-                        line_nr)
+                    'The following exception occured at line'
+                    ' {} in file {}'.format(
+                        line_nr,
+                        bdata['output'].name
                     )
+                )
                 continue
-
-            processed_batch.append(translated_entry)
 
         outqueue.put({
             'data': processed_batch,
@@ -142,46 +149,52 @@ class FileHandles:
     closed, and also tracks the count for a filehandle
 
     Arguments:
-        logger=None --- str: logging.Logger: If a logger is given, it's used
-        to print total counts before closing a file, and warnings in case a
-        file is reopened
+        logger -- This logger is used for logging the closing and opening of
+        files
     """
 
-    def __init__(self, logger=None):
+    def __init__(self, *, logger: logging.Logger):
         self._data = {}
         self.maxopen = 20
         self.previously_closed = set()
         self.logger = logger
+
+    def _addfile(self, filepath):
+        """Add a file to the filehandles cache"""
+        if len(self._data) == self.maxopen:
+            oldestkey = list(self._data.keys())[0]
+            self._closefile(oldestkey)
+
+        if filepath.name in self.previously_closed:
+            self.logger.warning(
+                'Reopened previously closed file: {}'.format(filepath.name)
+            )
+            mode = 'a'
+        else:
+            mode = 'w'
+
+        self._data[filepath.name] = {
+            'file': open(filepath, mode, encoding='utf8'),
+            'count': 0
+        }
 
     def get(self, filepath):
         """
         Get the filehandle data (dict) for the given filepath (pathlib.Path).
         """
         name = filepath.name
-        if name not in self._data:
-            # Create new one, delete oldest if size is self.maxopen is exceeded
-            if len(self._data) == self.maxopen:
-                oldestkey = list(self._data.keys())[0]
-                self._closefile(oldestkey)
-
-            mode = 'w'
-            if name in self.previously_closed:
-                if self.logger is not None:
-                    self.logger.warning(
-                        'Reopened previously closed file: {}'.format(name)
-                    )
-                mode = 'a'
-            self._data[name] = {
-                'file': open(filepath, mode, encoding='utf8'),
-                'count': 0
-            }
-        return self._data[name]
+        try:
+            return self._data[name]
+        except KeyError:
+            self._addfile(filepath)
+            return self._data[name]
 
     def _closefile(self, name):
         """
         Close the file with the given name
         """
         data = self._data.pop(name)
+        data['file'].close()
         if self.logger is not None:
             self.logger.info(
                 'File {} closed, total stored: {}'.format(
@@ -205,15 +218,15 @@ def write_results(outqueue, logqueue):
     """
     logger = get_process_logger(logqueue)
 
-    # Keys are filenames, contains a dict with 'file' (the filehandle) and
-    # 'count' (the count saved to that handle)
     filehandles = FileHandles(logger=logger)
     while True:
         results = outqueue.get()
 
         if results.get('close'):
             if not outqueue.empty():
-                logger.warning('Close command given on non-empty queue!')
+                logger.warning(
+                    'Close command given on non-empty output queue!'
+                )
             break
 
         data = results['data']
@@ -231,6 +244,10 @@ def write_results(outqueue, logqueue):
 
 
 if __name__ == '__main__':
+    # Since the base process uses multithreading for the queuelistener, use the
+    # spawn method (Already used by default on Windows and Mac)
+    multiprocessing.set_start_method('spawn')
+
     # Parse the script arguments
     aparser = argparse.ArgumentParser(
         description="Process harvested data into the OpenDaL format"
@@ -253,15 +270,12 @@ if __name__ == '__main__':
     )
     aparser.add_argument(
         "--batchsize",
-        help="The size of a single batch that's pushed to a worker for processing (default=500)",
+        help=(
+            "The size of a single batch that's pushed to a worker for "
+            "processing (default=500)"
+        ),
         type=int,
         default=500
-    )
-    aparser.add_argument(
-        "--queuedbatches",
-        help="Maximum number of batches on the input queue, ideally nprocesses-2 (default=7)",
-        type=int,
-        default=7
     )
 
     # Get arguments
@@ -270,7 +284,7 @@ if __name__ == '__main__':
     out_dir = args.out_folder
     process_count = args.nprocesses
     batch_size = args.batchsize
-    queue_size = args.queuedbatches
+    queue_size = process_count - 2
 
     if in_dir == out_dir:
         aparser.error('Input directory cannot equal output directory!')
@@ -278,7 +292,7 @@ if __name__ == '__main__':
     # Configure logging
     # First: Set-up queue listener
     LOG_LOC = Path(out_dir, 'processing.log')
-    logqueue = Queue()
+    logqueue = multiprocessing.Queue()
     filehandler = handlers.RotatingFileHandler(
         LOG_LOC, maxBytes=1048576, backupCount=4
     )
@@ -300,15 +314,15 @@ if __name__ == '__main__':
         if p.is_file() and filename_regex.match(p.name) is not None
     ]
 
-    input_queue = Queue(queue_size)
+    input_queue = multiprocessing.Queue(queue_size)
     # Output queue size limit may not be necessary, because writing should
     # not be the bottleneck
-    output_queue = Queue(queue_size * 2)
+    output_queue = multiprocessing.Queue(queue_size * 2)
 
     # Initiate the worker processes
     workers = []
     for i in range(process_count - 2):
-        p = Process(
+        p = multiprocessing.Process(
             target=process_data, args=(input_queue, output_queue, logqueue),
             daemon=False
         )
@@ -316,7 +330,7 @@ if __name__ == '__main__':
         workers.append(p)
 
     # Initiate the writer process
-    writer = Process(
+    writer = multiprocessing.Process(
         target=write_results, args=(output_queue, logqueue), daemon=False
     )
     writer.start()
@@ -324,33 +338,27 @@ if __name__ == '__main__':
     # Start reading data, and put it on the queue
     try:
         for path in file_paths:
-            # Gather properties
             sourceid = filename_regex.match(path.name).group(1)
-            source = [s for s in sources if s['id'] == sourceid][0]
 
             properties = {
                 'source': {
                     'id': sourceid,
-                    'structurer_kwargs': source.get('structurer_kwargs', {}),
-                    # Don't pass the object, it needs to be pickled each time
-                    # rather each thread keeps a cache of structurers per
-                    # sourceid
-                    'structurer': source['structurer']
                 },
-                'output': Path(out_dir, path.name)
+                'output': Path(out_dir, path.name),
             }
 
-            # Read data in batches, and put on input queue. Since it has a maxsize,
-            # it will block if enough data is read
+            # Read data in batches, and put on input queue. Since it has a
+            # maxsize, it will block if enough data is read
             batch = []
             linenr = 0
             for hdat in iterate_jsonlines(path):
                 linenr += 1
                 batch.append((linenr, hdat))
                 if len(batch) == batch_size:
-                    batch_data = copy.deepcopy(properties)
-                    batch_data['data'] = batch
-                    input_queue.put(batch_data)
+                    input_queue.put({
+                        **properties,
+                        'data': batch,
+                    })
                     batch = []
                 if linenr % 5000 == 0:
                     logger.info(
@@ -367,9 +375,10 @@ if __name__ == '__main__':
                     )
                 )
                 if batch:
-                    batch_data = copy.deepcopy(properties)
-                    batch_data['data'] = batch
-                    input_queue.put(batch_data)
+                    input_queue.put({
+                        **properties,
+                        'data': batch,
+                    })
                     batch = []
 
         for w in workers:
