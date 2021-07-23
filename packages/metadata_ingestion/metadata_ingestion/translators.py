@@ -1346,7 +1346,7 @@ class CreatorTranslator(SchemaValidationMixin, FieldTranslator):
 
     def _process(self, payload):
         result = super()._process(payload)
-        if result is not None and len(result) <= self._schema['maxLength']:
+        if result is not None and len(result) <= self._schema['maxItems']:
             return result
         else:
             return None

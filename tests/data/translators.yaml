@@ -138,7 +138,7 @@ CreatorTranslator:
       - organization
       schema:
         type: array
-        maxLength: 32
+        maxItems: 32
         items:
           type: object
           properties:
@@ -610,7 +610,7 @@ SubjectTranslator:
       - topics
       schema:
         type: array
-        maxLength: 5
+        maxItems: 5
       source_max_size: 15
       dict_key_priority:
       - title
@@ -672,7 +672,7 @@ LocationTranslator:
       - location
       schema:
         type: array
-        maxLength: 16
+        maxItems: 16
       bbox_field_pairs:
       - - minX
         - minY
