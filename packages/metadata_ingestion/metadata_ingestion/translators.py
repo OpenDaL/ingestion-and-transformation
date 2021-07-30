@@ -903,7 +903,7 @@ class DatePreparser(Preparser):
                         # two dates
                         parts = data.split('/')
                         if len(parts) == 2 and len(parts[0]) == len(parts[1]):
-                            preparsing_results['timePeriod'] = {
+                            preparsing_results['TimePeriodTranslator'] = {
                                 'temporal': data
                             }
                             return
@@ -922,7 +922,7 @@ class DatePreparser(Preparser):
             return False
 
         def_key = '_preparsed_date'
-        if translator_name == 'OtherDateTranslator':
+        if translator_name == 'OtherDatesTranslator':
             def_key = org_typename
         if translator_name in preparsing_results:
             if translator_name == 'ModifiedDateTranslator':

@@ -8,7 +8,7 @@ DatePreparser:
         created: CreatedDateTranslator
         updated: ModifiedDateTranslator
         publication: IssuedDateTranslator
-        accepted: OtherDateTranslator
+        accepted: OtherDatesTranslator
       datetype_keys:
         - type
         - dateType
@@ -32,7 +32,7 @@ DatePreparser:
       _structured_after: # Dates field is removed, since it's used
         date: "This is just bullshit content"
       _return:
-        OtherDateTranslator:
+        OtherDatesTranslator:
           accepted: 2021-02-13T00:00:00Z
         ModifiedDateTranslator:
           _preparsed_date: 2021-04-16T00:00:00Z
