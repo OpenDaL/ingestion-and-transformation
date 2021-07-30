@@ -3241,9 +3241,14 @@ class LanguageTranslator(FieldTranslator):
         langs = []
         for item in list_:
             if isinstance(item, str):
-                langs.extend(self._process_string(item))
+                new_langs = self._process_string(item)
             elif isinstance(item, dict):
-                langs.extend(self._process_dict(item))
+                new_langs = self._process_dict(item)
+            else:
+                continue
+
+            if new_langs is not None:
+                langs.extend(new_langs)
 
         if langs:
             return langs
