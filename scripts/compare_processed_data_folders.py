@@ -52,12 +52,19 @@ def compare_output(
             )
             continue
 
-        assert type(reference_value) == type(actual_value)
+        assert type(reference_value) == type(actual_value), (
+            f"For key '{key}' the reference {reference_value} does not"
+            f" match the actual {actual_value}"
+        )
         if isinstance(reference_value, list):
             # List lengths should be equal
-            assert len(reference_value) == len(actual_value)
+            assert len(reference_value) == len(actual_value), (
+                f"For key '{key}' the reference {reference_value} "
+                f"does not match the actual {actual_value}"
+            )
             for ref_item in reference_value:
                 if ref_item not in actual_value:
+                    is_an_error = False
                     # It can be that lists inside the dict are in a different
                     # order. Therefore, recheck by investigating each item
                     # seperately
@@ -74,11 +81,15 @@ def compare_output(
                             except AssertionError:
                                 continue
                         else:
-                            # Already tested with if, but this displays info
-                            assert ref_item in actual_value
+                            is_an_error = True
                     else:
                         # Already tested with if, but this displays info
-                        assert ref_item in actual_value
+                        is_an_error = True
+                    if is_an_error:
+                        raise AssertionError(
+                            f"Item {ref_item} not in value for"
+                            f" key {key}: {actual_value}"
+                        )
 
         elif isinstance(reference_value, dict):
             compare_output(
@@ -88,7 +99,10 @@ def compare_output(
                 assert_none=assert_none
             )
         else:
-            assert actual_value == reference_value
+            assert actual_value == reference_value, (
+                f"Values for key {key} does do not "
+                f"match:\n{difference_message}"
+            )
 
 
 def compare(id_, original, reference):
