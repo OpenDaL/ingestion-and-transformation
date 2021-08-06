@@ -2879,7 +2879,7 @@ class TimePeriodTranslator(FieldTranslator):
     def _create_timeperiod(
             self, start: datetime.datetime, end: datetime.datetime
             ):
-        if end > start and start > self.gt and end < self.lt:
+        if start > self.gt and end < self.lt and not start > end:
             return {
                 'type': 'About',
                 'start': _date2str(start),
