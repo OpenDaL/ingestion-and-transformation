@@ -158,7 +158,7 @@ class Optimizer(PostProcessor):
                         del translated_metadata['issued']
 
             if org_modified is not None:
-                created = translated_metadata['created'] 
+                created = translated_metadata['created']
                 if org_modified < created:
                     translated_metadata['created'] = org_modified
                     del translated_metadata['modified']

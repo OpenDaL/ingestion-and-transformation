@@ -1461,73 +1461,108 @@ class DateTranslator(FieldTranslator):
         self.gt = _parse_date_requirement(gt)
         self.favor_earliest = favor_earliest
 
-    def _process_string(self, str_):
-        return _convert_date_string(str_, self.lt, self.gt)
+    def _is_inaccurate_date(self, str_):
+        """Determine if the date in the string is inaccurate (e.g. a year)"""
+        return len(str_) == 4 and year_regex.match(str_)
 
-    def _process_int(self, int_):
-        dt = _parse_timestamp(int_, self.lt, self.gt)
-        if dt is not None:
-            return dt.strftime(st.DATE_FORMAT)
+    def _process_string(self, str_) -> tuple[str, bool]:
+        result = _convert_date_string(str_, self.lt, self.gt)
+        if result is not None:
+            return result, self._is_inaccurate_date(str_)
+        else:
+            return None, None
 
-    def _get_dict_payload_str(self, dict_):
+    def _process_list(self, list_) -> tuple[str, bool]:
+        results = []
+        for item in list_:
+            if isinstance(item, str):
+                result = self._process_string(item)
+                if result[0] is not None:
+                    results.append(
+                        result
+                    )
+
+        if results:
+            if self.favor_earliest:
+                return min(results, key=lambda k: k[0])
+            else:
+                return max(results, key=lambda k: k[0])
+        else:
+            return None, None
+
+    def _process_dict(self, dict_) -> tuple[str, bool]:
         if st.REP_TEXTKEY in dict_:
             payload = dict_[st.REP_TEXTKEY]
             if isinstance(payload, str):
-                return payload
+                return self._process_string(payload)
+            else:
+                return None, None
 
-    def _get_list_payload_str(self, list_):
-        if len(list_) > 0:
-            # As a simplification, only the first item is checked
-            payload = list_[0]
-            if isinstance(payload, str):
-                return payload
+    def _process_int(self, int_) -> tuple[str, bool]:
+        dt = _parse_timestamp(int_, self.lt, self.gt)
+        if dt is not None:
+            return dt.strftime(st.DATE_FORMAT), False
+        else:
+            return None, None
 
-    def _process(self, payload):
-        """
-        This intermediate step is not used by this translator
-        """
-        pass
+    def _process_datetime(self, dt_object) -> tuple[str, bool]:
+        if self.gt < dt_object < self.lt:
+            return dt_object.strftime(st.DATE_FORMAT), False
+        else:
+            return None, None
 
-    def translate(self, metadata: ResourceMetadata, **kwargs):
+    def _process(self, payload) -> tuple[str, bool]:
+        if isinstance(payload, str):
+            return self._process_string(payload)
+        elif isinstance(payload, dict):
+            return self._process_dict(payload)
+        elif isinstance(payload, list):
+            return self._process_list(payload)
+        elif isinstance(payload, int):
+            return self._process_int(payload)
+        elif isinstance(payload, datetime.datetime):
+            return self._process_datetime(payload)
+        else:
+            return None, None
+
+    def translate(
+            self, metadata: ResourceMetadata, *, preparsed_data: dict = None
+            ):
         """
         Note that this skips the _process function, since some tests on the
         data itself need to be performed at this level
         """
         date = None
         inaccurate_date = None
+        # First check the preparsed dates
+        if preparsed_data:
+            # Generally, there's just one preparsed data object for
+            # a normal date
+            for dt_object in preparsed_data.values():
+                date, _ = self._process(dt_object)
+
         for field in self.fields:
             if field not in metadata.structured:
                 continue
 
             payload = metadata.structured[field]
-            if isinstance(payload, (str, dict, list)):
-                if isinstance(payload, dict):
-                    payload = self._get_dict_payload_str(payload)
-                    if payload is None:
-                        continue
-                elif isinstance(payload, list):
-                    payload = self._get_list_payload_str(payload)
-                    if payload is None:
-                        continue
-                new_date = self._process_string(payload)
-                if new_date is not None and len(payload) == 4 and\
-                        year_regex.match(payload):
-                    inaccurate_date = new_date
-                    continue
-            elif isinstance(payload, int):
-                new_date = self._process_int(payload)
-            elif isinstance(payload, datetime.datetime):
-                new_date = payload.strftime(st.DATE_FORMAT)
-            else:
+
+            new_date, is_inaccurate = self._process(payload)
+
+            if new_date is None:
                 continue
 
-            if new_date is not None:
-                if date is not None:
-                    if self.favor_earliest and new_date < date or\
-                            (not self.favor_earliest) and new_date > date:
-                        date = new_date
-                else:
+            if is_inaccurate:
+                inaccurate_date = new_date
+                continue
+
+            # If the new date is accurate:
+            if date is not None:
+                if self.favor_earliest and new_date < date or\
+                        (not self.favor_earliest) and new_date > date:
                     date = new_date
+            else:
+                date = new_date
 
         if date is None and inaccurate_date is not None:
             date = inaccurate_date
@@ -1574,70 +1609,61 @@ class OtherDatesTranslator(DateTranslator):
         super().__init__(*args, **kwargs)
         self.type_mapping = type_mapping
 
-    def translate(self, metadata: ResourceMetadata, **kwargs):
+    def translate(
+            self, metadata: ResourceMetadata, preparsed_data: dict = None
+            ):
         """
         Override DateTranslator 'translate' function, to apply the proper
         data format for otherdates
         """
         otherdates = []
         for field in self.fields:
-            if field not in metadata.structured:
-                continue
-
-            payload = metadata.structured[field]
-            date_type = self.type_mapping[field]
-            is_accurate = True
-            if isinstance(payload, (str, dict, list)):
-                if isinstance(payload, dict):
-                    payload = self._get_dict_payload_str(payload)
-                    if payload is None:
-                        continue
-                elif isinstance(payload, list):
-                    payload = self._get_list_payload_str(payload)
-                    if payload is None:
-                        continue
-                new_date = self._process_string(payload)
-                if new_date is not None and len(payload) == 4 and\
-                        year_regex.match(payload):
-                    is_accurate = False
-            elif isinstance(payload, int):
-                new_date = self._process_int(payload)
-            elif isinstance(payload, datetime.datetime):
-                new_date = payload.strftime(st.DATE_FORMAT)
+            if preparsed_data and field in preparsed_data:
+                payload = preparsed_data[field]
+            elif field in metadata.structured:
+                payload = metadata.structured[field]
             else:
                 continue
 
-            if new_date is not None:
-                # Find if there's already a date with this type defined
-                existing_dates = [
-                    d for d in otherdates if d['type'] == date_type
-                ]
-                if existing_dates:
-                    # There is max 1 existing date of the same type
-                    ex_date = existing_dates[0]['value']
-                    ex_date_accurate = existing_dates[0]['isAccurate']
-                    if ex_date_accurate and not is_accurate:
-                        # If the existing is accurate and the current is not,
-                        # drop the current
-                        continue
-                    elif (
-                            (is_accurate and not ex_date_accurate) or
-                            (self.favor_earliest and new_date < ex_date) or
-                            ((not self.favor_earliest) and new_date > ex_date)
-                    ):
-                        # Remove existing date
-                        otherdates = [
-                            d for d in otherdates if d['type'] != date_type
-                        ]
-                    else:
-                        continue
+            date_type = self.type_mapping[field]
 
-                # Add new date
-                otherdates.append({
-                    'type': date_type,
-                    'value': new_date,
-                    'isAccurate': is_accurate
-                })
+            new_date, is_inaccurate = self._process(payload)
+
+            if new_date is None:
+                continue
+
+            is_accurate = not is_inaccurate
+
+            # Find if there's already a date with this type defined
+            existing_dates = [
+                d for d in otherdates if d['type'] == date_type
+            ]
+            if existing_dates:
+                # There is max 1 existing date of the same type
+                ex_date = existing_dates[0]['value']
+                ex_date_accurate = existing_dates[0]['isAccurate']
+                if ex_date_accurate and not is_accurate:
+                    # If the existing is accurate and the current is not,
+                    # drop the current
+                    continue
+                elif (
+                        (is_accurate and not ex_date_accurate) or
+                        (self.favor_earliest and new_date < ex_date) or
+                        ((not self.favor_earliest) and new_date > ex_date)
+                        ):
+                    # Remove existing date
+                    otherdates = [
+                        d for d in otherdates if d['type'] != date_type
+                    ]
+                else:
+                    continue
+
+            # Add new date
+            otherdates.append({
+                'type': date_type,
+                'value': new_date,
+                'isAccurate': is_accurate
+            })
 
         for date in otherdates:
             date.pop('isAccurate')  # remove internal variable
@@ -2834,7 +2860,7 @@ class TimePeriodTranslator(FieldTranslator):
 
     Specific arguments:
         lt -- Max date should be lower than this
-        
+
         gt -- Min date should be bigger than this
 
         begin_end_field_pairs -- List of field pairs. A field pair is a list
@@ -3079,7 +3105,9 @@ class TimePeriodTranslator(FieldTranslator):
 
         return merged_time_periods
 
-    def translate(self, metadata: ResourceMetadata, **kwargs):
+    def translate(
+            self, metadata: ResourceMetadata, preparsed_data: dict = None
+            ):
         time_periods = []
 
         available_keys = set(metadata.structured.keys())
@@ -3095,10 +3123,13 @@ class TimePeriodTranslator(FieldTranslator):
                 time_periods.append(time_period)
 
         for field in self.fields:
-            if field not in metadata.structured:
+            if preparsed_data and field in preparsed_data:
+                payload = preparsed_data[field]
+            elif field in metadata.structured:
+                payload = metadata.structured[field]
+            else:
                 continue
 
-            payload = metadata.structured[field]
             result = self._process(payload)
             if result is not None:
                 time_periods.extend(result)
