@@ -2406,7 +2406,7 @@ class LocationTranslator(SchemaValidationMixin, FieldTranslator):
             [field for pair in self.bbox_field_pairs for field in pair]
         )
 
-    def _create_bbox_geometry(
+    def _create_geometry(
             self, xmin: float, ymin: float, xmax: float, ymax: float
             ) -> dict:
         r_xmin = round(xmin, 2)
@@ -2424,7 +2424,7 @@ class LocationTranslator(SchemaValidationMixin, FieldTranslator):
                 'coordinates': [[xmin, ymax], [xmax, ymin]]
             }
 
-    def _create_location(
+    def _create_feature(
             self, name: str = None, geometry: dict = None,
             elevation: float = None
             ):
@@ -2445,24 +2445,38 @@ class LocationTranslator(SchemaValidationMixin, FieldTranslator):
 
         return location
 
-    def _bbox_is_valid(
+    def _location_is_valid(
             self, xmin: float, ymin: float, xmax: float, ymax: float
             ) -> bool:
+        """
+        Returns True if it's a bbox or a point
+        """
         return (
-            # max greater than min (or equal, then it's created as point)
-            (xmin <= xmax and ymin <= ymax) and
-            # Within valid bounds
-            (xmin >= -180 and xmax <= 180 and ymin >= -90 and ymax <= 90) and
-            # Not all zero
-            not (xmin == xmax == ymin == ymax == 0) and
-            # Not the entire globe
-            not (xmin == -180 and xmax == 180 and ymin == -90 and ymax == 90)
+            # Values are within bounds
+            (xmin >= -180 and xmax <= 180 and ymin >= -90 and ymax <= 90) and (
+                # It's a bounding box
+                (
+                    (xmin < xmax and ymin < ymax) and
+                    not (
+                        xmin == -180 and
+                        xmax == 180 and
+                        ymin == -90 and
+                        ymax == 90
+                    )
+
+                )
+                or
+                # It's a point
+                (xmin == xmax and ymin == ymax)
+            ) and
+            # not emtpy data
+            not (xmin == xmax == ymin == ymax == 0)
         )
 
-    def _create_bbox_location(self, *args) -> dict:
-        if self._bbox_is_valid(*args):
-            geometry = self._create_bbox_geometry(*args)
-            return self._create_location(geometry=geometry)
+    def _create_location(self, *args) -> dict:
+        if self._location_is_valid(*args):
+            geometry = self._create_geometry(*args)
+            return self._create_feature(geometry=geometry)
 
     def _locations_from_shape(self, shape: geometry.shape):
         results = []
@@ -2471,11 +2485,11 @@ class LocationTranslator(SchemaValidationMixin, FieldTranslator):
             if 'multi' in shape.type.lower():
                 items = list(shape)
                 for item in items:
-                    result = self._create_bbox_location(*item.bounds)
+                    result = self._create_location(*item.bounds)
                     if result is not None:
                         results.append(result)
             else:
-                result = self._create_bbox_location(*shape.bounds)
+                result = self._create_location(*shape.bounds)
                 if result is not None:
                     results.append(result)
         except TypeError:
@@ -2523,7 +2537,7 @@ class LocationTranslator(SchemaValidationMixin, FieldTranslator):
             except (ValueError):
                 return []
 
-            loc = self._create_bbox_location(xmin, ymin, xmax, ymax)
+            loc = self._create_location(xmin, ymin, xmax, ymax)
             if loc is not None:
                 return [loc]
         # CASE 3: It's a WKT String
@@ -2543,7 +2557,7 @@ class LocationTranslator(SchemaValidationMixin, FieldTranslator):
             xmax = float(xmax)
             ymax = float(ymax)
 
-            loc = self._create_bbox_location(xmin, ymin, xmax, ymax)
+            loc = self._create_location(xmin, ymin, xmax, ymax)
             if loc is not None:
                 return [loc]
         else:
@@ -2574,7 +2588,7 @@ class LocationTranslator(SchemaValidationMixin, FieldTranslator):
                         ymin = min(ys)
                         xmax = max(xs)
                         ymax = max(ys)
-                        loc = self._create_bbox_location(
+                        loc = self._create_location(
                             xmin, ymin, xmax, ymax
                         )
                         if loc is not None:
@@ -2597,7 +2611,7 @@ class LocationTranslator(SchemaValidationMixin, FieldTranslator):
                         xmin, xmax = sorted(xvals)
                         ymin, ymax = sorted(yvals)
 
-                        loc = self._create_bbox_location(
+                        loc = self._create_location(
                             xmin, ymin, xmax, ymax
                         )
                         if loc is not None:
@@ -2618,7 +2632,7 @@ class LocationTranslator(SchemaValidationMixin, FieldTranslator):
                         ymin = float(ymin)
                         xmax = float(xmax)
                         ymax = float(ymax)
-                        loc = self._create_bbox_location(
+                        loc = self._create_location(
                             xmin, ymin, xmax, ymax
                         )
                         if loc is not None:
@@ -2649,7 +2663,7 @@ class LocationTranslator(SchemaValidationMixin, FieldTranslator):
                     except ValueError:
                         break
 
-                    loc = self._create_bbox_location(
+                    loc = self._create_location(
                         xmin, ymin, xmax, ymax
                     )
                     if loc is not None:
@@ -2767,7 +2781,7 @@ class LocationTranslator(SchemaValidationMixin, FieldTranslator):
             ymin = float(ymin_data)
             xmax = float(xmax_data)
             ymax = float(ymax_data)
-            return self._create_bbox_location(
+            return self._create_location(
                 xmin, ymin, xmax, ymax
             )
         except ValueError:
