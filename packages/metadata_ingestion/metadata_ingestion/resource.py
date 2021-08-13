@@ -3,6 +3,7 @@
 Contains the resource classes
 """
 import copy
+import hashlib
 
 
 class ResourceMetadata:
@@ -36,9 +37,19 @@ class ResourceMetadata:
             }
         self.structured['_dplatform_uid'] = self.meta['localId']
 
+    def get_global_id(self):
+        source_id = self.meta['source']['id']
+        local_id = self.meta['localId']
+        encoded_local_id = local_id.encode('utf8')
+        if len(encoded_local_id) > 256:
+            id_hash = hashlib.md5(encoded_local_id).hexdigest()
+            return f'{source_id}-MD5Hash-{id_hash}'
+        else:
+            return f'{source_id}-{local_id}'
+
     def get_full_data(self):
         header_metadata = {
-            'id': self.meta['globalId'],
+            'id': self.get_global_id(),
             'externalReference': {
                 'type': 'synchronizedPortalPage',
                 'URL': self.meta['url']

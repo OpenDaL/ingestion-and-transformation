@@ -41,13 +41,6 @@ class Structurer(ABC):
     def __init__(self, source_id: str):
         self.source_id = source_id
 
-    def get_global_id(self, id_: str):
-        """
-        Gets the global id of the resource (a local unique id, prefixed with
-        the source_id)
-        """
-        return f'{self.source_id}-{id_}'
-
     def _fill_structured(self, metadata: ResourceMetadata):
         """
         Fill metadata.structured. By default, this copies the harvested
@@ -131,8 +124,6 @@ class KeyIdMixin:
                 )
             )
             metadata.meta['localId'] = local_id
-            if local_id is not None:
-                metadata.meta['globalId'] = self.get_global_id(local_id)
         super()._process(metadata)
 
 
@@ -1221,7 +1212,6 @@ class CSWStructurer(
         if isinstance(dataset_id, dict):
             dataset_id = dataset_id[REP_TEXTKEY]
         metadata.meta['localId'] = dataset_id
-        metadata.meta['globalId'] = self.get_global_id(dataset_id)
         metadata.meta['url'] = self.base_url + quote_plus(dataset_id)
 
         if self.reverse_corner_coordinates:
@@ -1302,7 +1292,6 @@ class GMDStructurer(UpdateFromKeyMixin, FormatMixin, Structurer):
                 dsid = id_['CharacterString']
             id_ = dsid
         metadata.meta['localId'] = id_
-        metadata.meta['globalId'] = self.get_global_id(id_)
         metadata.meta['url'] = self.base_url + quote_plus(id_)
 
         # Get type information
