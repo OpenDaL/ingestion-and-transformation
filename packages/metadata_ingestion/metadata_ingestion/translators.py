@@ -1965,10 +1965,7 @@ class LicenseTranslator(
         return ttype
 
     def _process_string(self, str_) -> dict:
-        if not (self.is_valid(str_, 'name') or self.is_valid(str_, 'content')):
-            return
-
-        if url_regex.match(str_):
+        if url_regex.match(str_) and self.is_valid(str_, 'content'):
             return {
                 'type': 'URL',
                 'content': str_
