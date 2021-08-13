@@ -1366,9 +1366,12 @@ class PublisherTranslator(SchemaValidationMixin, FieldTranslator):
 
     def _process_string(self, str_) -> dict:
         str_ = str_.strip()
-        if self.is_valid(str_, subkey='name') and str_ not in NONE_STRINGS \
-                and not email_adress_regex.match(str_) \
-                and not url_regex.match(str_):
+        if (
+                self.is_valid(str_, subkey='name') and
+                str_.lower() not in NONE_STRINGS and
+                not email_adress_regex.match(str_) and
+                not url_regex.match(str_)
+                ):
             for string_start in IGNORE_STARTSWITH:
                 if str_.lower().startswith(string_start):
                     break
