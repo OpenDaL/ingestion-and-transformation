@@ -15,6 +15,8 @@ DatePreparser:
       datevalue_keys:
         - value
         - date
+      datetype_dict_keys:
+        - _content
     preparse_function_tests:
     # Test basic preparsing
     - _structured_before:

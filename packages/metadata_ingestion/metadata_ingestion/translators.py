@@ -856,15 +856,28 @@ class StringTruncationMixin:
 class DatePreparser(Preparser):
     """
     Preparses dictionaries that can contain data for one of the date fields
+
+    Additional arguments:
+        type_translator_mapping -- Maping of date types to a specific
+        translator
+
+        datetype_keys -- The keys to find date type information
+
+        datevalue_keys -- The keys to find the actual date under
+
+        datetype_dict_keys -- In case the value found under a datetype key is
+        dict, these dict keys are tried to extract date type information
     """
     def __init__(
             self, fields: list[str], *, type_translator_mapping: dict,
-            datetype_keys: list[str], datevalue_keys: list[str]
+            datetype_keys: list[str], datevalue_keys: list[str],
+            datetype_dict_keys: list[str],
             ):
         super().__init__(fields)
         self.type_translator_mapping = type_translator_mapping
         self.datetype_keys = datetype_keys
         self.datevalue_keys = datevalue_keys
+        self.datetype_dict_keys = datetype_dict_keys
 
     def _extracted_dict_data(self, dict_, preparsing_results: dict) -> bool:
         """
@@ -877,18 +890,32 @@ class DatePreparser(Preparser):
         for key in self.datetype_keys:
             if key in dict_:
                 data = dict_[key]
+                org_typenames = []
                 if isinstance(data, str):
-                    org_typename = data.lower()
+                    org_typenames.append(data.lower())
                 elif isinstance(data, dict):
-                    org_typename = data.get(st.REP_TEXTKEY)
+                    for datetype_dict_key in self.datetype_dict_keys:
+                        if datetype_dict_key not in data:
+                            continue
+                        else:
+                            org_typenames.append(data[datetype_dict_key])
                 else:
                     continue
 
-                if org_typename is not None and \
-                        org_typename in self.type_translator_mapping:
-                    translator_name = \
-                        self.type_translator_mapping[org_typename]
-                    break
+                if org_typenames:
+                    for org_typename in org_typenames:
+                        if org_typename in self.type_translator_mapping:
+                            translator_name = \
+                                self.type_translator_mapping[org_typename]
+                            break
+                    else:
+                        continue
+                else:
+                    continue
+
+                # This break statement is only reached if a translator_name
+                # was found
+                break
         else:
             return False
 
