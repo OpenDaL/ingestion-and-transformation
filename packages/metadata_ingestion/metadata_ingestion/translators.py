@@ -3052,7 +3052,14 @@ class TimePeriodTranslator(FieldTranslator):
                         break
 
             if edge_date is None:
-                break  # No use to continueing if one of the dates is not found
+                if edge == 'start':
+                    break  # If a start date is not found, data is invalid
+                else:
+                    # If it's the end, assume 'now'
+                    edge_date = _str2date(
+                        'now', self.lt, self.gt, **date_kwargs
+                    )
+                    timeperiod_data[edge] = edge_date
         else:
             period = self._create_timeperiod(**timeperiod_data)
             if period is not None:
