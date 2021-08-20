@@ -8,7 +8,6 @@ external data sources to the correct metadata format.
 import re
 import datetime
 import html
-import hashlib
 import copy
 from abc import ABC, abstractmethod
 from typing import Callable, Union
@@ -27,19 +26,19 @@ from metadata_ingestion import _aux, _loadcfg
 from metadata_ingestion import settings as st
 from metadata_ingestion.resource import ResourceMetadata
 
+# Configure HTML2Text
+html2text.config.IGNORE_ANCHORS = True
+html2text.config.IGNORE_IMAGES = True
+html2text.config.IGNORE_EMPHASIS = True
+html2text.config.BODY_WIDTH = 0
+
 # Load configuration data
 trl_rules = _loadcfg.translation_rules()
-trl_mapping = _loadcfg.translation()
 file_format_mapping = _loadcfg.file_format_mapping()
-language_mapping = _loadcfg.language_mapping()
-epsg_codes = set(_loadcfg.epsg_codes())
-name_to_epsg = _loadcfg.name_to_epsg()
-two_letter_language_codes = list(set([v for k, v in language_mapping.items()]))
 NONE_STRINGS = set(trl_rules['_general']['none_strings'])
 IGNORE_STARTSWITH = trl_rules['_general']['ignore_startswith']
 IGNORE_CONTAINS = trl_rules['_general']['ignore_contains']
 NOW_EQUIVS = set(trl_rules['_general']['now_equivalents'])
-SECOND_ROUND_FUNCTIONS = set(['untranslated'])
 
 
 class FieldTranslator(ABC):
@@ -280,59 +279,8 @@ def _parse_date_requirement(date):
         return date
 
 
-min_dates = [
-    trl_rules['created']['gt'],
-    trl_rules['modified']['gt'],
-    trl_rules['issued']['gt']
-]
-max_dates = [
-    _parse_date_requirement(trl_rules['created']['lt']),
-    _parse_date_requirement(trl_rules['modified']['lt']),
-    _parse_date_requirement(trl_rules['issued']['lt'])
-]
-min_date = min(min_dates)
-max_date = max(max_dates)
-
-# Load subject translation data:
-topic_re = re.compile(r"[-'&\._\s]+")
-subject_scheme_data = _loadcfg.subject_scheme()
-subject_mapping = {}
-translated_subjects = set()
-for subject_id, subject_data in subject_scheme_data.items():
-    matches_keys = [k for k in subject_data if k.startswith('matches_')]
-    all_matches = list(set([topic_re.sub("", unidecode.unidecode(d.lower()))
-                            for m_key in matches_keys for d in
-                            subject_data[m_key]]))
-    for match in all_matches:
-        if match in translated_subjects:
-            subject_mapping[match].append(subject_id)
-        else:
-            translated_subjects.add(match)
-            subject_mapping[match] = [subject_id]
-
-
-# Add full list op parents and relations to subject scheme data, to filter
-# duplicates when found:
-def find_parents_relations(subject_id):
-    parents_and_relations = subject_scheme_data[subject_id]['parents'] +\
-        subject_scheme_data[subject_id]['relations']
-    for pr in parents_and_relations:
-        new_prs = find_parents_relations(pr)
-        parents_and_relations = list(set(parents_and_relations + new_prs))
-
-    return parents_and_relations
-
-
-for subject, subject_data in subject_scheme_data.items():
-    prs = find_parents_relations(subject)
-    subject_data['all_parents_relations'] = prs
-
-# Set html2text configuration
-html2text.config.IGNORE_ANCHORS = True
-html2text.config.IGNORE_IMAGES = True
-html2text.config.IGNORE_EMPHASIS = True
-html2text.config.BODY_WIDTH = 0
-
+# TODO: Consider creating a class of the str2date function, that includes this
+# initialization code
 # # Create a dateparser instance
 PARSE_DATE_FORMATS = [
     '%d-%m-%Y',
@@ -361,65 +309,13 @@ dparser_end = DateDataParser(
 )
 
 # Compile often used regexs for performance
+email_address_pattern = re.compile(r'(mailto:)?[^(@|\s)]+@[^(@|\s)]+\.\w+')
+year_pattern = re.compile(r'^\d{4}$')
+url_pattern = re.compile(r'https?://[^\s]*$')
+between_brackets_pattern = re.compile(r'\((.*?)\)')
+duration_pattern = re.compile(r'p(((\d+)(y|m|d|w))|(t(\d+)(h|m|s)))')
+
 html_cregex = re.compile(r'<\w[^(<|>)]*>')
-md_links_cregex = re.compile(r'\[([^(\[|\])]*)\]\s?\(([^(\(|\))]*)\)')
-manylines_cregex = re.compile(r'\n{3,}')
-email_adress_regex = re.compile(r'(mailto:)?[^(@|\s)]+@[^(@|\s)]+\.\w+')
-journal_volume_regex = re.compile(r'v\w{0,5}\.?\s?(\d+)$')
-journal_issue_regex = re.compile(r'[i|n]\w{0,4}\.?\s?(\d+)$')
-journal_pages_regex = re.compile(r'(p\w{0,4}\.?\s?)?(\d+)\s?-\s?(\d+)$')
-journal_issn_end_regex = re.compile(r'.*[^\d](\d{4}-\d{3}[\d|x])$')
-title_data_regex = re.compile(r'TITLE=([^;]*)')
-volume_data_regex = re.compile(r'VOLUME=(\d+)')
-issue_data_regex = re.compile(r'ISSUE=(\d+)')
-frompage_data_regex = re.compile(r'STARTPAGE=(\d+)')
-untilpage_data_regex = re.compile(r'ENDPAGE=(\d+)')
-issn_data_regex = re.compile(r'ISSN=(\d{4}-?\d{3}[\d|X])(?=[;|$])')
-year_regex = re.compile(r'^\d{4}$')
-fr_date_format_regex = re.compile(r'^\w{3},')
-iso_datetime_pattern = re.compile(
-    r'^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[1-3][0-9])([Tt]\d{2}:\d{2}:\d{2}(\.\d{3}(\d{3})?)?)?Z?$'
-)
-phone_regex = re.compile(r'^\+?(\d|\s|-){5,24}$')
-name_regex = re.compile(r'^(?=\D+$)[\w\s\.,\-]+$')
-url_regex = re.compile(r'https?://[^\s]*$')
-doi_regex = re.compile(
-    r'(((https?://)?(www.)?(dx.)?doi.org/)|(doi:))?(10\.[\d\.]+/[^\s]+)$'
-    )
-isbn_regex = re.compile(r'(isbn[=:]?\s?)?([\d\-\s]{9,17}x?)$')
-wkt_format_regex =\
-    re.compile(r'^((POLYGON)|(POINT)|(MULTIPOLYGON)|(MULTIPOINT))\s?\(')
-bbox_data_regex = re.compile(
-    r'^(-?\d+\.?\d*)((\s-?\d+\.?\d*){3}|((,\s?)-?\d+\.?\d*){3}|((\|\s?)-?\d+\.?\d*){3})$'
-)
-# Below uses .join, because repeated groups cannot be accessed through .group
-# using the default re module
-bbox_key_value_pattern = re.compile(
-    ''.join([r'(([a-z]+)=(-?\d{1,3}([\.,]\d+)?)[;,]\s)' for i in range(3)])
-    + r'(([a-z]+)=(-?\d{1,3}([\.,]\d+)?))'
-)
-bbox_kv_groups = [
-    (2, 3),
-    (6, 7),
-    (10, 11),
-    (14, 15)
-]
-divide_locs_regex = re.compile(',|;|:')
-between_brackets_regex = re.compile(r'\((.*?)\)')
-duration_regex = re.compile(r'p(((\d+)(y|m|d|w))|(t(\d+)(h|m|s)))')
-andor_regex = re.compile(r'\band\b|\bor\b')
-integer_regex = re.compile(r'^\d+$')
-epsg_regex = re.compile(r'epsg:{1,2}(\d+)')
-cs_name_regex = re.compile(r'((projcs)|(geogcs))\["(.*?)"')
-orchid_isni_regex = re.compile(r'(\d{4}-?){3}\d{3}[\dX]$', re.IGNORECASE)
-initials_regex = re.compile(r'\b([A-Z]\.?){1,2}\b')
-non_letter_regex = re.compile(r'[^a-zA-Z\s]+')
-bracketed_numbers_regex = re.compile(r'\(\d+\)')
-# Only T and Z allowed, since these are in ISO dates:
-no_written_dates_pattern = re.compile('^[^a-zA-SU-Y]+$')
-unseperated_date_pattern = re.compile(
-    r'[0-2]\d\d\d(0[1-9]|1[0-2])(0[1-9]|1[0-9]?|2[0-9]|3[0-1])'
-)
 
 
 def _convert_if_html(str_):
@@ -433,35 +329,6 @@ def _convert_if_html(str_):
         return new_str
     else:
         return str_
-
-
-def tkey2fname(tkey):
-    """
-    Translates a key in the new metadata schema to a function name
-
-    Arguments:
-        tkey --- str: The key name in the new metadata scheme
-
-    Returns:
-        str --- The function name for translation
-    """
-    previous_is_upper = False
-    new_str_data = []
-    if tkey == 'type':
-        return 'type_'
-    for l in tkey:
-        if l.isupper():
-            if previous_is_upper:
-                new_str_data[-1] = new_str_data[-1].replace('_', '').upper()
-                new_str_data.append(l)
-            else:
-                new_str_data.append('_{}'.format(l.lower()))
-            previous_is_upper = True
-        else:
-            new_str_data.append(l)
-            previous_is_upper = False
-
-    return ''.join(new_str_data)
 
 
 def _INSPIRE_role2type(role):
@@ -485,7 +352,8 @@ def _INSPIRE_role2type(role):
     else:
         return None
 
-
+# TODO: Only used in str2date and parse timestamp. Consider merging into one 
+# class with related functionality
 def _correct_date(dt, lt, gt):
     """
     Validate date that was found, based on the lower than and greater than
@@ -506,13 +374,6 @@ def _correct_date(dt, lt, gt):
 
     else:
         return None
-
-
-def _date2str(date):
-    """
-    Converts a date to a string, adding zero padding to years if required
-    """
-    return date.date().isoformat()
 
 
 def _is_valid_string(str_, check_startswith=False, check_contains=False):
@@ -554,6 +415,15 @@ def _now_date():
     return date.replace(tzinfo=datetime.timezone.utc)
 
 
+fr_date_format_pattern = re.compile(r'^\w{3},')
+iso_datetime_pattern = re.compile(
+    r'^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[1-3][0-9])([Tt]\d{2}:\d{2}:\d{2}(\.\d{3}(\d{3})?)?)?Z?$'
+)
+unseperated_date_pattern = re.compile(
+    r'[0-2]\d\d\d(0[1-9]|1[0-2])(0[1-9]|1[0-9]?|2[0-9]|3[0-1])'
+)
+
+
 def _str2date(str_, lt, gt, period_end=False, ignore_now=False):
     """
     Converts a string to a UTC datetime.datetime
@@ -575,8 +445,8 @@ def _str2date(str_, lt, gt, period_end=False, ignore_now=False):
         datetime.datetime/NoneType --- The result of parsing the date string
     """
     # First check if it's only a year:
-    if len(str_) == 4 and year_regex.match(str_):
-        year = year_regex.match(str_).group(0)
+    if len(str_) == 4 and year_pattern.match(str_):
+        year = year_pattern.match(str_).group(0)
         try:
             if period_end:
                 date = datetime.datetime(int(year), 12, 31)
@@ -598,7 +468,7 @@ def _str2date(str_, lt, gt, period_end=False, ignore_now=False):
     elif (not ignore_now) and str_.lower().strip() in NOW_EQUIVS:
         date = _now_date()
         return date
-    elif fr_date_format_regex.match(str_) is not None:
+    elif fr_date_format_pattern.match(str_) is not None:
         if len(str_) > 5:
             str_ = str_[5:]
     elif unseperated_date_pattern.match(str_):
@@ -641,44 +511,6 @@ def _convert_date_string(str_, lt, gt):
         return date.strftime(st.DATE_FORMAT)
     else:
         return None
-
-
-def _parse_ISO_duration(str_):
-    """
-    Parse a simple ISO duration to timedelta object (with one date or time
-    value)
-    """
-    match = duration_regex.match(str_)
-    delta = None
-    if match:
-        dategroup = match.group(2)
-        datenumber = match.group(3)
-        dateunit = match.group(4)
-        timegroup = match.group(5)
-        timenumber = match.group(6)
-        timeunit = match.group(7)
-        if dategroup:
-            datenumber = int(datenumber)
-            if dateunit == 'y':
-                # Approximation, average year is 365.25
-                delta = datetime.timedelta(days=datenumber*365)
-            elif dateunit == 'm':
-                # Approximation, timedelta does not support months
-                delta = datetime.timedelta(days=datenumber*30)
-            elif dateunit == 'w':
-                delta = datetime.timedelta(weeks=datenumber)
-            elif dateunit == 'd':
-                delta = datetime.timedelta(days=datenumber)
-        elif timegroup:
-            timenumber = int(timenumber)
-            if timeunit == 'h':
-                delta = datetime.timedelta(hours=timenumber)
-            elif timeunit == 'm':
-                delta = datetime.timedelta(minutes=timenumber)
-            elif timeunit == 's':
-                delta = datetime.timedelta(seconds=timenumber)
-
-    return delta
 
 
 def _get_preferred_language_value(list_):
@@ -879,6 +711,20 @@ class DatePreparser(Preparser):
         self.datevalue_keys = datevalue_keys
         self.datetype_dict_keys = datetype_dict_keys
 
+        # TODO: Move this into the translator config
+        min_dates = [
+            trl_rules['created']['gt'],
+            trl_rules['modified']['gt'],
+            trl_rules['issued']['gt']
+        ]
+        max_dates = [
+            _parse_date_requirement(trl_rules['created']['lt']),
+            _parse_date_requirement(trl_rules['modified']['lt']),
+            _parse_date_requirement(trl_rules['issued']['lt'])
+        ]
+        self.min_date = min(min_dates)
+        self.max_date = max(max_dates)
+
     def _extracted_dict_data(self, dict_, preparsing_results: dict) -> bool:
         """
         Process the data and add extracted data to pre-parsing results if
@@ -934,15 +780,17 @@ class DatePreparser(Preparser):
                                 'temporal': data
                             }
                             return
-                    date = _str2date(data, max_date, min_date)
+                    date = _str2date(data, self.max_date, self.min_date)
                     if date is not None:
                         break
                 elif isinstance(data, int):
-                    date = _parse_timestamp(data, max_date, min_date)
+                    date = _parse_timestamp(data, self.max_date, self.min_date)
                     if date is not None:
                         break
                 elif isinstance(data, dict) and st.REP_TEXTKEY in data:
-                    date = _str2date(data[st.REP_TEXTKEY], max_date, min_date)
+                    date = _str2date(
+                        data[st.REP_TEXTKEY], self.max_date, self.min_date,
+                    )
                     if date is not None:
                         break
         else:
@@ -994,7 +842,7 @@ class TitleTranslator(StringTruncationMixin, FieldTranslator):
     field_name = 'title'
 
     def __init__(
-            self, fields: list[str], *, schema: dict, 
+            self, fields: list[str], *, schema: dict,
             dict_key_priority: list[str], type_keys: list[str],
             type_priority: list[str]
             ):
@@ -1090,6 +938,10 @@ class DescriptionTranslator(StringTruncationMixin, FieldTranslator):
     """
     field_name = 'description'
 
+    # Regex patterns
+    md_links_pattern = re.compile(r'\[([^(\[|\])]*)\]\s?\(([^(\(|\))]*)\)')
+    manylines_pattern = re.compile(r'\n{3,}')
+
     def __init__(
             self, fields: list[str], *, schema: dict,
             dict_key_priority: list[str], type_keys: list[str],
@@ -1101,12 +953,12 @@ class DescriptionTranslator(StringTruncationMixin, FieldTranslator):
         self.type_priority = type_priority
 
     def _process_string(self, str_):
-        if str_.lower() in NONE_STRINGS or str_.lower() == 'description' or\
+        if (not _is_valid_string(str_)) or str_.lower() == 'description' or\
                 str_.lower() == 'abstract':
             return None
         desc = _convert_if_html(str_)
-        desc = md_links_cregex.sub(r'\1', desc)
-        desc = manylines_cregex.sub('\n\n', desc)
+        desc = self.md_links_pattern.sub(r'\1', desc)
+        desc = self.manylines_pattern.sub('\n\n', desc)
         desc = desc.strip()
         return self.truncate_string(desc)
 
@@ -1191,7 +1043,7 @@ class VersionTranslator(SchemaValidationMixin, FieldTranslator):
         'value' property
         """
         if isinstance(payload, str):
-            if payload.lower() not in NONE_STRINGS:
+            if _is_valid_string(payload):
                 version_data = {
                     'value': payload
                 }
@@ -1203,6 +1055,10 @@ class CreatorTranslator(SchemaValidationMixin, FieldTranslator):
     """Field translator for the 'creator' field"""
     field_name = "creator"
 
+    # Regex patterns
+    initials_pattern = re.compile(r'\b([A-Z]\.?){1,2}\b')
+    bracketed_numbers_pattern = re.compile(r'\(\d+\)')
+
     def _split_creators(self, str_):
         # For now, only split authors if the string contains multi & or ;
         if str_.count(';') > 1:
@@ -1213,7 +1069,7 @@ class CreatorTranslator(SchemaValidationMixin, FieldTranslator):
             return [str_]
 
     def _process_string(self, str_):
-        if str_.lower() in NONE_STRINGS or email_adress_regex.match(str_) or \
+        if (not _is_valid_string(str_)) or email_address_pattern.match(str_) or \
                 '{' in str_:
             return None
 
@@ -1239,10 +1095,10 @@ class CreatorTranslator(SchemaValidationMixin, FieldTranslator):
                     if first_name.count(' ') == 0:
                         c_str = '{} {}'.format(first_name, last_name)
                     elif first_name.count(' ') == 1 and\
-                            initials_regex.search(first_name):
+                            self.initials_pattern.search(first_name):
                         c_str = '{} {}'.format(first_name, last_name)
             # If there is a number in brackets, remove it (for figshare)
-            c_str = bracketed_numbers_regex.sub('', c_str).strip()
+            c_str = self.bracketed_numbers_pattern.sub('', c_str).strip()
 
             creators.append({'name': c_str})
 
@@ -1395,22 +1251,18 @@ class PublisherTranslator(SchemaValidationMixin, FieldTranslator):
         str_ = str_.strip()
         if (
                 self.is_valid(str_, subkey='name') and
-                str_.lower() not in NONE_STRINGS and
-                not email_adress_regex.match(str_) and
-                not url_regex.match(str_)
+                _is_valid_string(str_, check_startswith=True) and
+                not email_address_pattern.match(str_) and
+                not url_pattern.match(str_)
                 ):
-            for string_start in IGNORE_STARTSWITH:
-                if str_.lower().startswith(string_start):
-                    break
-            else:
-                return {'name': str_}
+            return {'name': str_}
 
     def _process_dict(self, dict_) -> dict:
         pub = None
         for key in self.dict_key_priority:
             if key not in dict_:
                 continue
-            
+
             data = dict_[key]
             if isinstance(data, str):
                 result = self._process_string(data)
@@ -1427,10 +1279,10 @@ class PublisherTranslator(SchemaValidationMixin, FieldTranslator):
             for key in self.url_keys:
                 if key not in dict_:
                     continue
-                
+
                 data = dict_[key]
                 if isinstance(data, str):
-                    is_url = url_regex.match(data)
+                    is_url = url_pattern.match(data)
                     if is_url and self.is_valid(data, subkey='identifier'):
                         pub['identifier'] = data
                         pub['identifierType'] = 'URL'
@@ -1493,7 +1345,7 @@ class DateTranslator(FieldTranslator):
 
     def _is_inaccurate_date(self, str_):
         """Determine if the date in the string is inaccurate (e.g. a year)"""
-        return len(str_) == 4 and year_regex.match(str_)
+        return len(str_) == 4 and year_pattern.match(str_)
 
     def _process_string(self, str_) -> tuple[str, bool]:
         result = _convert_date_string(str_, self.lt, self.gt)
@@ -1724,6 +1576,10 @@ class ContactTranslator(FieldTranslator, SchemaValidationMixin):
     """
     field_name = 'contact'
 
+    # Regex patterns
+    phone_pattern = re.compile(r'^\+?(\d|\s|-){5,24}$')
+    name_pattern = re.compile(r'^(?=\D+$)[\w\s\.,\-]+$')
+
     def __init__(
             self, fields: dict, primary_pairs: list, dict_key_priorities: dict,
             schema: dict
@@ -1753,8 +1609,8 @@ class ContactTranslator(FieldTranslator, SchemaValidationMixin):
 
     def _process_name_string(self, str_) -> str:
         """Process string name data"""
-        if (str_.lower() in NONE_STRINGS) or email_adress_regex.match(str_) or\
-                url_regex.match(str_):
+        if (not _is_valid_string(str_)) or email_address_pattern.match(str_) or\
+                url_pattern.match(str_):
             return
         elif not self.is_valid(str_, 'name'):
             return
@@ -1762,7 +1618,7 @@ class ContactTranslator(FieldTranslator, SchemaValidationMixin):
             if str_.count(',') > 1:
                 str_opts = str_.split(',')
                 for str_ in str_opts:
-                    if name_regex.match(str_):
+                    if self.name_pattern.match(str_):
                         break
                 else:
                     str_ = None
@@ -1813,9 +1669,9 @@ class ContactTranslator(FieldTranslator, SchemaValidationMixin):
     def _process_details_string(self, str_, dtype) -> str:
         if self.is_valid(str_, 'details'):
             if (
-                (dtype == 'email' and not email_adress_regex.match(str_)) or
+                (dtype == 'email' and not email_address_pattern.match(str_)) or
                 (dtype == 'address' and not (',' in str_ or '\n' in str_)) or
-                (dtype == 'phone' and phone_regex.match(str_) is None)
+                (dtype == 'phone' and self.phone_pattern.match(str_) is None)
             ):
                 return None
             else:
@@ -1994,7 +1850,7 @@ class LicenseTranslator(
         return ttype
 
     def _process_string(self, str_) -> dict:
-        if url_regex.match(str_) and self.is_valid(str_, 'content'):
+        if url_pattern.match(str_) and self.is_valid(str_, 'content'):
             return {
                 'type': 'URL',
                 'content': str_
@@ -2041,7 +1897,7 @@ class LicenseTranslator(
             if key in self.dict_key_mapping and isinstance(value, str):
                 maps_to = self.dict_key_mapping[key]
                 if maps_to == "url":
-                    if url_regex.match(value) and\
+                    if url_pattern.match(value) and\
                             self.is_valid(value, 'content'):
                         urldata = {
                             'content': value,
@@ -2152,12 +2008,18 @@ class IdentifierTranslator(FieldTranslator):
     """
     field_name = 'identifier'
 
+    # Regex patterns
+    doi_pattern = re.compile(
+        r'(((https?://)?(www.)?(dx.)?doi.org/)|(doi:))?(10\.[\d\.]+/[^\s]+)$'
+    )
+    isbn_pattern = re.compile(r'(isbn[=:]?\s?)?([\d\-\s]{9,17}x?)$')
+
     def __init__(self, *args, dict_key_priority: list[str], **kwargs):
         super().__init__(*args, **kwargs)
         self.dict_key_priority = dict_key_priority
 
     def _extract_isbn(self, str_):
-        match = isbn_regex.match(str_)
+        match = self.isbn_pattern.match(str_)
         if match:
             isbn = match.group(2)
             cleaned_isbn = ''.join(
@@ -2174,7 +2036,7 @@ class IdentifierTranslator(FieldTranslator):
         if lstr == '':
             return
         elif lstr.startswith('10.') or 'doi' in lstr:
-            match = doi_regex.match(str_)
+            match = self.doi_pattern.match(str_)
             return {'type': 'DOI', 'value': match.group(7)} if match else None
         elif str_[0].isdigit() or 'isbn' in lstr:
             return self._extract_isbn(str_)
@@ -2326,6 +2188,46 @@ class SubjectTranslator(SchemaValidationMixin, FieldTranslator):
         self.source_max_size = source_max_size
         self.dict_key_priority = dict_key_priority
 
+        # Initialize the subject data
+        self.topic_re = re.compile(r"[-'&\._\s]+")
+        self.subject_scheme_data = _loadcfg.subject_scheme()
+        self.subject_mapping = {}
+        self.translated_subjects = set()
+        for subject_id, subject_data in self.subject_scheme_data.items():
+            matches_keys = [
+                k for k in subject_data if k.startswith('matches_')
+            ]
+            all_matches = list(set(
+                [
+                    self.topic_re.sub("", unidecode.unidecode(d.lower()))
+                    for m_key in matches_keys for d in subject_data[m_key]
+                ]
+            ))
+            for match in all_matches:
+                if match in self.translated_subjects:
+                    self.subject_mapping[match].append(subject_id)
+                else:
+                    self.translated_subjects.add(match)
+                    self.subject_mapping[match] = [subject_id]
+
+        for subject, subject_data in self.subject_scheme_data.items():
+            prs = self.find_parents_relations(subject)
+            subject_data['all_parents_relations'] = prs
+
+    def find_parents_relations(self, subject_id: str) -> list[str]:
+        """
+        Find all parents and relations of a specific subject
+        """
+        parents_and_relations = (
+            self.subject_scheme_data[subject_id]['parents'] +
+            self.subject_scheme_data[subject_id]['relations']
+        )
+        for pr in parents_and_relations:
+            new_prs = self.find_parents_relations(pr)
+            parents_and_relations = list(set(parents_and_relations + new_prs))
+
+        return parents_and_relations
+
     def _process_string(self, str_) -> list[str]:
         """Returns a list of standardized strings"""
         new_sample = re.sub(r'["\{\}]', '', str_).lower()
@@ -2340,8 +2242,9 @@ class SubjectTranslator(SchemaValidationMixin, FieldTranslator):
         if not isinstance(new_sample, list):
             new_sample = [new_sample]
 
-        new_sample = [topic_re.sub('', unidecode.unidecode(s)) for s
-                      in new_sample]
+        new_sample = [
+            self.topic_re.sub('', unidecode.unidecode(s)) for s in new_sample
+        ]
 
         return new_sample
 
@@ -2375,8 +2278,8 @@ class SubjectTranslator(SchemaValidationMixin, FieldTranslator):
         return standard_strings
 
     def _get_string_subjects(self, str_) -> list[str]:
-        if str_ in translated_subjects:
-            return subject_mapping[str_]
+        if str_ in self.translated_subjects:
+            return self.subject_mapping[str_]
         else:
             return []
 
@@ -2387,8 +2290,10 @@ class SubjectTranslator(SchemaValidationMixin, FieldTranslator):
         """
         relations_parents = set()
         for subject in subject_set:
-            relations_parents.update(subject_scheme_data[subject]
-                                     ['all_parents_relations'])
+            relations_parents.update(
+                self.subject_scheme_data[subject]
+                ['all_parents_relations']
+            )
 
         return [s for s in subject_set if s not in relations_parents]
 
@@ -2400,7 +2305,7 @@ class SubjectTranslator(SchemaValidationMixin, FieldTranslator):
         for subject in subject_list:
             total_subjects.add(subject)
             total_subjects.update(
-                subject_scheme_data[subject]['all_parents_relations']
+                self.subject_scheme_data[subject]['all_parents_relations']
             )
         return list(total_subjects)
 
@@ -2447,6 +2352,25 @@ class LocationTranslator(SchemaValidationMixin, FieldTranslator):
         bbox_key_pairs -- Same as above, but for keys inside dictionary data
     """
     field_name = 'location'
+    bbox_kv_groups = [
+        (2, 3),
+        (6, 7),
+        (10, 11),
+        (14, 15)
+    ]
+
+    # Regex Patterns
+    wkt_format_pattern =\
+        re.compile(r'^((POLYGON)|(POINT)|(MULTIPOLYGON)|(MULTIPOINT))\s?\(')
+    bbox_data_pattern = re.compile(
+        r'^(-?\d+\.?\d*)((\s-?\d+\.?\d*){3}|((,\s?)-?\d+\.?\d*){3}|((\|\s?)-?\d+\.?\d*){3})$'
+    )
+    # Below uses .join, because repeated groups cannot be accessed through
+    # .group using the default re module
+    bbox_key_value_pattern = re.compile(
+        ''.join([r'(([a-z]+)=(-?\d{1,3}([\.,]\d+)?)[;,]\s)' for i in range(3)])
+        + r'(([a-z]+)=(-?\d{1,3}([\.,]\d+)?))'
+    )
 
     def __init__(
             self, *args, bbox_field_pairs: list[list[str]],
@@ -2596,10 +2520,10 @@ class LocationTranslator(SchemaValidationMixin, FieldTranslator):
             if loc is not None:
                 return [loc]
         # CASE 3: It's a WKT String
-        elif wkt_format_regex.match(str_):
+        elif self.wkt_format_pattern.match(str_):
             return self._process_wkt(str_)
         # CASE 4: It's a string describing a BBOX
-        elif bbox_data_regex.match(str_):
+        elif self.bbox_data_pattern.match(str_):
             if str_.count(',') == 3:
                 xmin, ymin, xmax, ymax = str_.split(',')
             elif str_.count('|') == 3:
@@ -2616,10 +2540,12 @@ class LocationTranslator(SchemaValidationMixin, FieldTranslator):
             if loc is not None:
                 return [loc]
         else:
-            bbox_match = bbox_key_value_pattern.match(str_.lower().strip())
+            bbox_match = self.bbox_key_value_pattern.match(
+                str_.lower().strip()
+            )
             if bbox_match is not None:
                 bbox_dict = {}
-                for key_i, value_i in bbox_kv_groups:
+                for key_i, value_i in self.bbox_kv_groups:
                     key = bbox_match.group(key_i)
                     value = bbox_match.group(value_i)
                     bbox_dict[key] = value
@@ -2633,8 +2559,8 @@ class LocationTranslator(SchemaValidationMixin, FieldTranslator):
             else:
                 if len(dict_['coordinates']) == 2:
                     coords = dict_['coordinates']
-                    for l in coords:
-                        if len(l) != 2:
+                    for coord in coords:
+                        if len(coord) != 2:
                             break
                     else:
                         xs = [c[0] for c in coords]
@@ -2749,7 +2675,7 @@ class LocationTranslator(SchemaValidationMixin, FieldTranslator):
     def _process_list(self, list_) -> list[dict]:
         results = []
         for item in list_:
-            new_results = self._process(item)            
+            new_results = self._process(item)
             if new_results:
                 results.extend(new_results)
 
@@ -2759,11 +2685,16 @@ class LocationTranslator(SchemaValidationMixin, FieldTranslator):
         duplicate_inds = set()
 
         # Get all envelopes, used to check if points are in them
-        envelopes = [[l['geometry']['coordinates'][0][0],
-                      l['geometry']['coordinates'][1][1],
-                      l['geometry']['coordinates'][1][0],
-                      l['geometry']['coordinates'][0][1]] for l in locations if
-                     'geometry' in l and l['geometry']['type'] == 'envelope']
+        envelopes = [
+            [
+                loc['geometry']['coordinates'][0][0],
+                loc['geometry']['coordinates'][1][1],
+                loc['geometry']['coordinates'][1][0],
+                loc['geometry']['coordinates'][0][1],
+            ]
+            for loc in locations
+            if 'geometry' in loc and loc['geometry']['type'] == 'envelope'
+        ]
 
         # Check bboxes, points and duplicate names
         xs = set()
@@ -2817,7 +2748,7 @@ class LocationTranslator(SchemaValidationMixin, FieldTranslator):
                     ys.add(r_y)
                 else:
                     duplicate_inds.add(ind_)
-                    
+
             if duplicate:
                 continue
 
@@ -2907,6 +2838,10 @@ class TimePeriodTranslator(FieldTranslator):
     """
     field_name = 'timePeriod'
 
+    # regex patterns
+    # Only T and Z allowed, since these are in ISO dates:
+    no_written_dates_pattern = re.compile('^[^a-zA-SU-Y]+$')
+
     def __init__(
             self, *args, lt: datetime.datetime, gt: datetime.datetime,
             begin_end_field_pairs: list[list[str]], dict_key_priority: dict,
@@ -2937,9 +2872,46 @@ class TimePeriodTranslator(FieldTranslator):
         if start > self.gt and end < self.lt and not start > end:
             return {
                 'type': 'About',
-                'start': _date2str(start),
-                'end': _date2str(end)
+                'start': start.strftime(st.DATE_FORMAT),
+                'end': end.strftime(st.DATE_FORMAT),
             }
+
+    def _parse_ISO_duration(self, str_):
+        """
+        Parse a simple ISO duration to timedelta object (with one date or time
+        value)
+        """
+        match = duration_pattern.match(str_)
+        delta = None
+        if match:
+            dategroup = match.group(2)
+            datenumber = match.group(3)
+            dateunit = match.group(4)
+            timegroup = match.group(5)
+            timenumber = match.group(6)
+            timeunit = match.group(7)
+            if dategroup:
+                datenumber = int(datenumber)
+                if dateunit == 'y':
+                    # Approximation, average year is 365.25
+                    delta = datetime.timedelta(days=datenumber*365)
+                elif dateunit == 'm':
+                    # Approximation, timedelta does not support months
+                    delta = datetime.timedelta(days=datenumber*30)
+                elif dateunit == 'w':
+                    delta = datetime.timedelta(weeks=datenumber)
+                elif dateunit == 'd':
+                    delta = datetime.timedelta(days=datenumber)
+            elif timegroup:
+                timenumber = int(timenumber)
+                if timeunit == 'h':
+                    delta = datetime.timedelta(hours=timenumber)
+                elif timeunit == 'm':
+                    delta = datetime.timedelta(minutes=timenumber)
+                elif timeunit == 's':
+                    delta = datetime.timedelta(seconds=timenumber)
+
+        return delta
 
     def _process_string(self, str_) -> list[dict]:
         start_date = None
@@ -2962,8 +2934,8 @@ class TimePeriodTranslator(FieldTranslator):
                 splitted = [s.strip() for s in splitted]
                 if len(splitted) == 2:
                     if (len(splitted[0]) == len(splitted[1])) or not (
-                        (no_written_dates_pattern.match(splitted[0])
-                         and no_written_dates_pattern.match(splitted[1]))
+                        (self.no_written_dates_pattern.match(splitted[0])
+                         and self.no_written_dates_pattern.match(splitted[1]))
                             ):
                         # The lengths of the splitted parts may only differ, if
                         # There are written dates, like day names or month
@@ -2985,14 +2957,14 @@ class TimePeriodTranslator(FieldTranslator):
                 # a duration, set end-date to now
                 years = re.findall(r'\d{4}', s)
                 parts = s.split('/')
-                endswith_duration = duration_regex.match(parts[-1])
+                endswith_duration = duration_pattern.match(parts[-1])
                 if start_date is not None and not endswith_duration:
                     end_date = _str2date('now', self.lt, self.gt,
                                          period_end=True)
                 elif endswith_duration or (years and len(years) == 1):
                     if endswith_duration:
                         start_payload = parts[0]
-                        end_payload = _parse_ISO_duration(parts[-1])
+                        end_payload = self._parse_ISO_duration(parts[-1])
                     else:
                         start_payload = s.strip('/-')
                         # Assume a single day/month/year coverage
@@ -3178,6 +3150,9 @@ class TimePeriodTranslator(FieldTranslator):
 class FormatTranslator(FieldTranslator):
     field_name = 'format'
 
+    # Regex patterns
+    non_letter_pattern = re.compile(r'[^a-zA-Z\s]+')
+
     def _derive_plain_extensions(self, str_) -> list[str]:
         """Derive one or more file extensions from a string"""
         data = []
@@ -3188,11 +3163,11 @@ class FormatTranslator(FieldTranslator):
             part = part.strip()
             if 1 < len(part) < 6:
                 new_part = unidecode.unidecode(
-                    non_letter_regex.sub('', part)
+                    self.non_letter_pattern.sub('', part)
                 ).upper().strip()
-                space_count = sum([l.isspace() for l in new_part])
+                space_count = sum([char.isspace() for char in new_part])
                 if 1 < len(new_part) < 5 and space_count == 0\
-                        and new_part.lower() not in NONE_STRINGS:
+                        and _is_valid_string(new_part):
                     data.append(new_part)
         return data
 
@@ -3205,7 +3180,7 @@ class FormatTranslator(FieldTranslator):
             data.append(file_format_mapping[str_])
         else:
             if '(' in str_:
-                matches = between_brackets_regex.findall(str_)
+                matches = between_brackets_pattern.findall(str_)
                 for match in matches:
                     data.extend(self._derive_plain_extensions(match))
             else:
@@ -3255,9 +3230,19 @@ class LanguageTranslator(FieldTranslator):
     """
     field_name = 'language'
 
+    # Regex patterns
+    and_or_pattern = re.compile(r'\band\b|\bor\b')
+
     def __init__(self, *args, dict_key_priority: list[str], **kwargs):
         super().__init__(*args, **kwargs)
         self.dict_key_priority = dict_key_priority
+
+        # TODO: Check if these are only used here. If this is the case, add to
+        # the translator configuration
+        self.language_mapping = _loadcfg.language_mapping()
+        self.two_letter_language_codes = list(set(
+            [v for k, v in self.language_mapping.items()]
+        ))
 
     def _process_string(self, str_) -> list[str]:
         # First seperate the string:
@@ -3273,13 +3258,13 @@ class LanguageTranslator(FieldTranslator):
         elif '-' in str_ or '_' in str_:
             parts = [str_[:2]]
         elif ' and ' in str_ or ' or ' in str_:
-            parts = andor_regex.split(str_)
+            parts = self.and_or_pattern.split(str_)
         else:
             # Check if there are brackets
-            data_between_brackets = between_brackets_regex.findall(str_)
+            data_between_brackets = between_brackets_pattern.findall(str_)
             if data_between_brackets != []:
                 outside_brackets =\
-                    [between_brackets_regex.sub('', str_).strip()]
+                    [between_brackets_pattern.sub('', str_).strip()]
                 parts = data_between_brackets + outside_brackets
             else:
                 parts = [str_]
@@ -3288,14 +3273,14 @@ class LanguageTranslator(FieldTranslator):
         for part in parts:
             text = part.strip()
             if len(text) == 2:
-                if text in two_letter_language_codes:
+                if text in self.two_letter_language_codes:
                     langs.append(text)
             else:
                 decoded = unidecode.unidecode(text)
-                if text in language_mapping:
-                    langs.append(language_mapping[text])
-                elif decoded in language_mapping:
-                    langs.append(language_mapping[decoded])
+                if text in self.language_mapping:
+                    langs.append(self.language_mapping[text])
+                elif decoded in self.language_mapping:
+                    langs.append(self.language_mapping[decoded])
 
         if langs:
             return langs
@@ -3360,37 +3345,47 @@ class CoordinateSystemTranslator(FieldTranslator):
     """
     field_name = 'coordinateSystem'
 
+    # Regex patterns
+    integer_pattern = re.compile(r'^\d+$')
+    epsg_pattern = re.compile(r'epsg:{1,2}(\d+)')
+    cs_name_pattern = re.compile(r'((projcs)|(geogcs))\["(.*?)"')
+
     def __init__(self, *args, dict_key_priority: list[str], **kwargs):
         super().__init__(*args, **kwargs)
         self.dict_key_priority = dict_key_priority
 
+        # TODO: Check if these are only used here. If so, move to translator
+        # configuration
+        self.epsg_codes = set(_loadcfg.epsg_codes())
+        self.name_to_epsg = _loadcfg.name_to_epsg()
+
     def _process_string(self, str_) -> list[int]:
         epsg_list = []
         str_ = str_.lower().strip()
-        mentioned_codes = epsg_regex.findall(str_)
-        if integer_regex.match(str_):
+        mentioned_codes = self.epsg_pattern.findall(str_)
+        if self.integer_pattern.match(str_):
             # Check if the integer is a valid EPSG code
             epsg = int(str_)
-            if epsg in epsg_codes:
+            if epsg in self.epsg_codes:
                 epsg_list.append(epsg)
         elif mentioned_codes != []:
             # Use codes that are referenced to as 'EPSG:...'
             for code in mentioned_codes:
                 code = int(code)
-                if code in epsg_codes:
+                if code in self.epsg_codes:
                     epsg_list.append(code)
         elif str_.startswith('geogcs[') or str_.startswith('projcs['):
             # Parse the projection name from WKT, and convert to EPSG:
-            match = cs_name_regex.match(str_)
+            match = self.cs_name_pattern.match(str_)
             if match:
                 name = match.group(4).lower()
-                if name in name_to_epsg:
-                    epsg_list.append(name_to_epsg[name])
+                if name in self.name_to_epsg:
+                    epsg_list.append(self.name_to_epsg[name])
         elif str_.startswith('wgs') and '84' in str_:
             epsg_list.append(4326)
         else:
-            if str_ in name_to_epsg:
-                epsg_list.append(name_to_epsg[str_])
+            if str_ in self.name_to_epsg:
+                epsg_list.append(self.name_to_epsg[str_])
 
         return epsg_list
 
@@ -3403,7 +3398,7 @@ class CoordinateSystemTranslator(FieldTranslator):
                 if isinstance(value, str):
                     result = self._process_string(value)
                 elif isinstance(value, int):
-                    if value in epsg_codes:
+                    if value in self.epsg_codes:
                         result = value
 
                 if result is not None:
