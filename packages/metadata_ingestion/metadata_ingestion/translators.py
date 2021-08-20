@@ -1501,6 +1501,8 @@ class DateTranslator(FieldTranslator):
             else:
                 return None, None
 
+        return None, None
+
     def _process_int(self, int_) -> tuple[str, bool]:
         dt = _parse_timestamp(int_, self.lt, self.gt)
         if dt is not None:
