@@ -11,9 +11,6 @@ import html
 import copy
 from abc import ABC, abstractmethod
 from typing import Callable, Union
-# # PERFORMANCE TESTING ########
-# import time
-# ##############################
 
 import html2text
 from dateparser.date import DateDataParser
@@ -33,12 +30,14 @@ html2text.config.IGNORE_EMPHASIS = True
 html2text.config.BODY_WIDTH = 0
 
 # Load configuration data
-trl_rules = _loadcfg.translation_rules()
-file_format_mapping = _loadcfg.file_format_mapping()
-NONE_STRINGS = set(trl_rules['_general']['none_strings'])
-IGNORE_STARTSWITH = trl_rules['_general']['ignore_startswith']
-IGNORE_CONTAINS = trl_rules['_general']['ignore_contains']
-NOW_EQUIVS = set(trl_rules['_general']['now_equivalents'])
+config = _loadcfg.translators()
+
+# Compile often used regexs for performance
+email_address_pattern = re.compile(r'(mailto:)?[^(@|\s)]+@[^(@|\s)]+\.\w+')
+year_pattern = re.compile(r'^\d{4}$')
+url_pattern = re.compile(r'https?://[^\s]*$')
+between_brackets_pattern = re.compile(r'\((.*?)\)')
+html_pattern = re.compile(r'<\w[^(<|>)]*>')
 
 
 class FieldTranslator(ABC):
@@ -146,13 +145,8 @@ class Preparser(ABC):
 class MetadataTranslator:
     """
     Metadata Translator
-
-    Arguments:
-        config -- dictionary that maps original field names to preparsers or
-        translators
     """
     def __init__(self):
-        config = _loadcfg.translators()
         # Initilialize the pre-parsers
         self._preparsers = []
         for classname, kwargs in config['preparsers'].items():
@@ -266,64 +260,12 @@ class OrderedTranslators:
         return self.ordered_translators
 
 
-def _parse_date_requirement(date):
-    """
-    If the date is 'now', this will return utcnow, otherwise, it will return
-    the original input
-    """
-    if date == 'now':
-        dnow = datetime.datetime.utcnow()
-        now = dnow.replace(tzinfo=datetime.timezone.utc)
-        return now
-    else:
-        return date
-
-
-# TODO: Consider creating a class of the str2date function, that includes this
-# initialization code
-# # Create a dateparser instance
-PARSE_DATE_FORMATS = [
-    '%d-%m-%Y',
-    '%d/%m/%Y',
-    '%Y-%m-%d',
-    '%Y/%m/%d',
-    '%m-%d-%Y',
-    '%m/%d/%Y'
-]
-DATE_PARSER_LANGS = ['en', 'es', 'fr', 'pt', 'de', 'nl', 'ja', 'he', 'id',
-                     'zh', 'el', 'ru', 'bg', 'lt', 'it', 'tr']
-dparser_begin = DateDataParser(
-    languages=DATE_PARSER_LANGS,
-    try_previous_locales=False,
-    settings={
-        'PREFER_DAY_OF_MONTH': 'first',
-    }
-)
-
-dparser_end = DateDataParser(
-    languages=DATE_PARSER_LANGS,
-    try_previous_locales=False,
-    settings={
-        'PREFER_DAY_OF_MONTH': 'last',
-    }
-)
-
-# Compile often used regexs for performance
-email_address_pattern = re.compile(r'(mailto:)?[^(@|\s)]+@[^(@|\s)]+\.\w+')
-year_pattern = re.compile(r'^\d{4}$')
-url_pattern = re.compile(r'https?://[^\s]*$')
-between_brackets_pattern = re.compile(r'\((.*?)\)')
-duration_pattern = re.compile(r'p(((\d+)(y|m|d|w))|(t(\d+)(h|m|s)))')
-
-html_cregex = re.compile(r'<\w[^(<|>)]*>')
-
-
 def _convert_if_html(str_):
     """
     Check if a string contains html, and convert to plain text if this is the
     case
     """
-    if html_cregex.search(str_):
+    if html_pattern.search(str_):
         new_str = html2text.html2text(str_)
         new_str = html.unescape(new_str)
         return new_str
@@ -352,29 +294,6 @@ def _INSPIRE_role2type(role):
     else:
         return None
 
-# TODO: Only used in str2date and parse timestamp. Consider merging into one 
-# class with related functionality
-def _correct_date(dt, lt, gt):
-    """
-    Validate date that was found, based on the lower than and greater than
-    values and convert it into the correct string format
-    """
-    if dt is not None:
-        if dt.tzinfo is not None:
-            # If in a different timezone, convert to UTC
-            dt = dt.astimezone(datetime.timezone.utc)
-        else:
-            # If no timezone given, assume UTC. Needed for comparison below
-            dt = dt.replace(tzinfo=datetime.timezone.utc)
-
-        if gt < dt < lt:
-            return dt
-        else:
-            return None
-
-    else:
-        return None
-
 
 def _is_valid_string(str_, check_startswith=False, check_contains=False):
     """
@@ -386,17 +305,17 @@ def _is_valid_string(str_, check_startswith=False, check_contains=False):
     valid = True
     lstring = str_.lower()
 
-    if lstring in NONE_STRINGS:
+    if lstring in config['general']['none_strings']:
         valid = False
 
     if check_startswith:
-        for startphrase in IGNORE_STARTSWITH:
+        for startphrase in config['general']['ignore_startswith']:
             if lstring.startswith(startphrase):
                 valid = False
                 break
 
     if check_contains:
-        for text in IGNORE_CONTAINS:
+        for text in config['general']['ignore_contains']:
             if text in lstring:
                 valid = False
                 break
@@ -404,113 +323,240 @@ def _is_valid_string(str_, check_startswith=False, check_contains=False):
     return valid
 
 
-def _now_date():
+class DateInfoParser:
     """
-    Create Now date. This adds several days to current date, in order
-    to account for Sync frequency of the portal
+    Parsing functions for date information
     """
-    date = datetime.datetime.utcnow() +\
-        datetime.timedelta(days=st.NOW_PDAYS)
+    parse_formats = [
+        '%d-%m-%Y',
+        '%d/%m/%Y',
+        '%Y-%m-%d',
+        '%Y/%m/%d',
+        '%m-%d-%Y',
+        '%m/%d/%Y'
+    ]
+    parse_languages = [
+        'en', 'es', 'fr', 'pt', 'de', 'nl', 'ja', 'he', 'id', 'zh', 'el', 'ru',
+        'bg', 'lt', 'it', 'tr'
+    ]
+    now_equivalents = set(config['general']['now_equivalents'])
 
-    return date.replace(tzinfo=datetime.timezone.utc)
+    # Regex patterns
+    fr_date_format_pattern = re.compile(r'^\w{3},')
+    iso_datetime_pattern = re.compile(
+        r'^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[1-3][0-9])'
+        r'([Tt]\d{2}:\d{2}:\d{2}(\.\d{3}(\d{3})?)?)?Z?$'
+    )
+    unseperated_date_pattern = re.compile(
+        r'[0-2]\d\d\d(0[1-9]|1[0-2])(0[1-9]|1[0-9]?|2[0-9]|3[0-1])'
+    )
 
+    def __init__(
+            self, greater_than: datetime.datetime,
+            lower_than: datetime.datetime
+            ):
+        """
+        Initialize the DateInfoParser
 
-fr_date_format_pattern = re.compile(r'^\w{3},')
-iso_datetime_pattern = re.compile(
-    r'^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[1-3][0-9])([Tt]\d{2}:\d{2}:\d{2}(\.\d{3}(\d{3})?)?)?Z?$'
-)
-unseperated_date_pattern = re.compile(
-    r'[0-2]\d\d\d(0[1-9]|1[0-2])(0[1-9]|1[0-9]?|2[0-9]|3[0-1])'
-)
+        Arguments:
+            greater_than -- Parse only dates greater than this date
 
+            lower_than -- Parse only dates lower than this date
+        """
+        self.gt = self._parse_date_requirement(greater_than)
+        self.lt = self._parse_date_requirement(lower_than)
 
-def _str2date(str_, lt, gt, period_end=False, ignore_now=False):
-    """
-    Converts a string to a UTC datetime.datetime
+        self.dparser_first = DateDataParser(
+            languages=self.parse_languages,
+            try_previous_locales=False,
+            settings={
+                'PREFER_DAY_OF_MONTH': 'first',
+            }
+        )
 
-    Arguments:
-        str_ --- str: String to derive datetime data from
+        self.dparser_last = DateDataParser(
+            languages=self.parse_languages,
+            try_previous_locales=False,
+            settings={
+                'PREFER_DAY_OF_MONTH': 'last',
+            }
+        )
 
-        lt --- datetime.datetime: Derived date should be lower than this
+    def _parse_date_requirement(
+            self, date: Union[datetime.datetime, str]
+            ) -> datetime.datetime:
+        """
+        If the date is 'now', this will return utcnow, otherwise, it will
+        return the original input
+        """
+        if date == 'now':
+            dnow = datetime.datetime.utcnow()
+            now = dnow.replace(tzinfo=datetime.timezone.utc)
+            return now
+        else:
+            return date
 
-        gt --- datetime.datetime: Derived date should be greater than this
-
-        period_end=False --- bool: For parsing years, determines whether the
-        end of the year or start should be used.
-
-        ignore_now=False --- bool: Whether to ignore strings that refer to
-        'now' (are in NOW_EQUIVS)
-
-    Return:
-        datetime.datetime/NoneType --- The result of parsing the date string
-    """
-    # First check if it's only a year:
-    if len(str_) == 4 and year_pattern.match(str_):
-        year = year_pattern.match(str_).group(0)
-        try:
-            if period_end:
-                date = datetime.datetime(int(year), 12, 31)
+    def _corrected(
+            self, date: datetime.datetime
+            ) -> Union[datetime.datetime, None]:
+        """
+        Transform the date to the UTC timezone, and check if it matches the
+        requirements.
+        """
+        if date is not None:
+            if date.tzinfo is not None:
+                # If in a different timezone, convert to UTC
+                date = date.astimezone(
+                    datetime.timezone.utc
+                )
             else:
-                date = datetime.datetime(int(year), 1, 1)
-            rdate = _correct_date(date, lt, gt)
-            return rdate
-        except ValueError:
+                # If no timezone given, assume UTC. Needed for comparison below
+                date = date.replace(
+                    tzinfo=datetime.timezone.utc
+                )
+
+            if self.is_valid(date):
+                return date
+            else:
+                return None
+
+        else:
             return None
-    elif iso_datetime_pattern.match(str_):
-        # Increase performance, by catching this before passing to dateparser
+
+    def _parse_date_data(
+            self, str_, dom_preference: str
+            ) -> Union[datetime.datetime, None]:
+        """
+        Parse a date string using the dateparser library (Used as last resort,
+        since it's slow)
+
+        Arguments:
+            str_ -- The data to parse
+
+            dom_preference -- Date of month preference, Either 'first' to
+            prefer the first date when parsing a Month name, or 'last', to
+            prefer the last day when parsing a month without a day
+        """
+        if dom_preference == 'first':
+            parser = self.dparser_first
+        elif dom_preference == 'last':
+            parser = self.dparser_last
+        else:
+            raise TypeError('Invalid dom_preference argument')
+
         try:
-            date = datetime.datetime.fromisoformat(str_.strip('Z'))
-            rdate = _correct_date(date, lt, gt)
-        except ValueError:
-            # If a too high day number for the month is used, it's bullshit
-            rdate = None
-        return rdate
-    elif (not ignore_now) and str_.lower().strip() in NOW_EQUIVS:
-        date = _now_date()
+            parse_result = parser.get_date_data(
+                str_, date_formats=self.parse_formats
+            )['date_obj']
+        except OverflowError:
+            return None
+
+        return self._corrected(parse_result)
+
+    @property
+    def now(self) -> datetime.datetime:
+        """
+        Create Now date. This adds several days to current date, in order
+        to account for Sync frequency of the portal
+        """
+        date = datetime.datetime.utcnow() +\
+            datetime.timedelta(days=st.NOW_PDAYS)
+
+        return date.replace(tzinfo=datetime.timezone.utc)
+
+    def is_valid(self, date: datetime.datetime) -> bool:
+        """
+        Test if the given date is between the lt and gt dates
+        """
+        return self.gt < date < self.lt
+
+    def parse_string(
+                self, str_, period_end: bool = False, ignore_now: bool = False
+                ) -> Union[datetime.datetime, None]:
+        """
+        Parse dates in strings to datetime objects
+
+        Arguments:
+            str_ -- The input to parse
+
+            period_end -- Set to true, if you want to parse the end of a
+            period. In case e.g. you provide a year, or a month, then the last
+            date/time of this year/month is used.
+
+            ignore_now -- If True, strings like 'now' or 'current' are not
+            parsed
+
+        Return:
+            The parsed date, when a valid value could be parsed
+        """
+        # First check if it's only a year:
+        if len(str_) == 4 and year_pattern.match(str_):
+            year = year_pattern.match(str_).group(0)
+            try:
+                if period_end:
+                    date = datetime.datetime(int(year), 12, 31)
+                else:
+                    date = datetime.datetime(int(year), 1, 1)
+                return self._corrected(date)
+            except ValueError:
+                return None
+        elif self.iso_datetime_pattern.match(str_):
+            # Increase performance, by catching this before passing to
+            # dateparser library
+            try:
+                date = datetime.datetime.fromisoformat(str_.strip('Z'))
+                return self._corrected(date)
+            except ValueError:
+                # If a too high day number for the month is used, it's bullshit
+                return None
+        elif (not ignore_now) and str_.lower().strip() in self.now_equivalents:
+            return self.now
+        elif self.fr_date_format_pattern.match(str_) is not None:
+            if len(str_) > 5:
+                str_ = str_[5:]
+        elif self.unseperated_date_pattern.match(str_):
+            try:
+                date = datetime.datetime.strptime(str_, '%Y%m%d')
+                return self._corrected(date)
+            except ValueError:
+                pass
+
+        # Otherwise use dateparser:
+        if period_end:
+            return self._parse_date_data(str_, 'last')
+        else:
+            return self._parse_date_data(str_, 'first')
+
+    def parse_timestamp(self, int_) -> Union[datetime.datetime, None]:
+        """
+        Parse a timestamp
+        """
+        date = None
+
+        if len(str(int_)) > 10:
+            # Likely milisecond version, convert to seconds
+            int_ = int_ / 1000
+
+        if int_ > 86400 and int_ < 9999999999:
+            date = datetime.datetime.fromtimestamp(int_)
+
+        date = self._corrected(date)
+
         return date
-    elif fr_date_format_pattern.match(str_) is not None:
-        if len(str_) > 5:
-            str_ = str_[5:]
-    elif unseperated_date_pattern.match(str_):
-        try:
-            date = datetime.datetime.strptime(str_, '%Y%m%d')
-            rdate = _correct_date(date, lt, gt)
-            return rdate
-        except ValueError:
-            pass
 
-    # Otherwise use dateparser:
-    if period_end:
-        try:
-            date = dparser_end.get_date_data(
-                str_,
-                date_formats=PARSE_DATE_FORMATS)['date_obj']
-        except OverflowError:
+    def convert_string(self, *args, **kwargs) -> Union[str, None]:
+        """
+        Convert a date string to a date string in the correct format
+
+        Arguments:
+            *args, **kwargs -- See DateInfoParser.parse_string
+        """
+        date = self.parse_string(*args, **kwargs)
+
+        if date is not None:
+            return date.strftime(st.DATE_FORMAT)
+        else:
             return None
-    else:
-        try:
-            date = dparser_begin.get_date_data(
-                str_,
-                date_formats=PARSE_DATE_FORMATS)['date_obj']
-        except OverflowError:
-            return None
-
-    final_date = _correct_date(date, lt, gt)
-
-    return final_date
-
-
-def _convert_date_string(str_, lt, gt):
-    """
-    Convert string data into a date, if it is in the range of the 'lower
-    than' and 'greter than' parameters
-    """
-    date = _str2date(str_, lt, gt, False)
-
-    if date is not None:
-        return date.strftime(st.DATE_FORMAT)
-    else:
-        return None
 
 
 def _get_preferred_language_value(list_):
@@ -526,7 +572,7 @@ def _get_preferred_language_value(list_):
         return
     # Check first item to get language and value keys
     language_key = None
-    for lkey in trl_rules['_general']['language_keys']:
+    for lkey in config['general']['language_keys']:
         if lkey in list_[0]:
             language_key = lkey
             break
@@ -535,7 +581,7 @@ def _get_preferred_language_value(list_):
         return
 
     value_key = None
-    for vkey in trl_rules['_general']['language_value_keys']:
+    for vkey in config['general']['language_value_keys']:
         if vkey in list_[0]:
             value_key = vkey
             break
@@ -555,24 +601,6 @@ def _get_preferred_language_value(list_):
                 break
 
     return value
-
-
-def _parse_timestamp(int_, lt, gt):
-    """
-    Convert timestamp to datetime
-    """
-    date = None
-
-    if len(str(int_)) > 10:
-        # Likely milisecond version, convert to seconds
-        int_ = int_ / 1000
-
-    if int_ > 86400 and int_ < 9999999999:
-        date = datetime.datetime.fromtimestamp(int_)
-
-    date = _correct_date(date, lt, gt)
-
-    return date
 
 
 def _get_value(dict_, keys, value_type=None):
@@ -699,31 +727,25 @@ class DatePreparser(Preparser):
 
         datetype_dict_keys -- In case the value found under a datetype key is
         dict, these dict keys are tried to extract date type information
+
+        lt -- Detected dates should be lower than this (Either the string
+        'now' or a datetime object)
+
+        gt -- Detected dates should be greater than this (Either the string
+        'now' or a datetime object)
     """
     def __init__(
             self, fields: list[str], *, type_translator_mapping: dict,
             datetype_keys: list[str], datevalue_keys: list[str],
-            datetype_dict_keys: list[str],
+            datetype_dict_keys: list[str], lt: Union[str, datetime.datetime],
+            gt: Union[str, datetime.datetime]
             ):
         super().__init__(fields)
         self.type_translator_mapping = type_translator_mapping
         self.datetype_keys = datetype_keys
         self.datevalue_keys = datevalue_keys
         self.datetype_dict_keys = datetype_dict_keys
-
-        # TODO: Move this into the translator config
-        min_dates = [
-            trl_rules['created']['gt'],
-            trl_rules['modified']['gt'],
-            trl_rules['issued']['gt']
-        ]
-        max_dates = [
-            _parse_date_requirement(trl_rules['created']['lt']),
-            _parse_date_requirement(trl_rules['modified']['lt']),
-            _parse_date_requirement(trl_rules['issued']['lt'])
-        ]
-        self.min_date = min(min_dates)
-        self.max_date = max(max_dates)
+        self.parser = DateInfoParser(gt, lt)
 
     def _extracted_dict_data(self, dict_, preparsing_results: dict) -> bool:
         """
@@ -780,17 +802,15 @@ class DatePreparser(Preparser):
                                 'temporal': data
                             }
                             return
-                    date = _str2date(data, self.max_date, self.min_date)
+                    date = self.parser.parse_string(data)
                     if date is not None:
                         break
                 elif isinstance(data, int):
-                    date = _parse_timestamp(data, self.max_date, self.min_date)
+                    date = self.parser.parse_timestamp(data)
                     if date is not None:
                         break
                 elif isinstance(data, dict) and st.REP_TEXTKEY in data:
-                    date = _str2date(
-                        data[st.REP_TEXTKEY], self.max_date, self.min_date,
-                    )
+                    date = self.parser.parse_string(data[st.REP_TEXTKEY])
                     if date is not None:
                         break
         else:
@@ -1069,8 +1089,11 @@ class CreatorTranslator(SchemaValidationMixin, FieldTranslator):
             return [str_]
 
     def _process_string(self, str_):
-        if (not _is_valid_string(str_)) or email_address_pattern.match(str_) or \
-                '{' in str_:
+        if (
+                (not _is_valid_string(str_)) or
+                email_address_pattern.match(str_) or
+                '{' in str_
+                ):
             return None
 
         if self._current_field == 'organization':
@@ -1339,8 +1362,7 @@ class DateTranslator(FieldTranslator):
             gt: Union[str, datetime.datetime], favor_earliest: bool = False
             ):
         super().__init__(fields)
-        self.lt = _parse_date_requirement(lt)
-        self.gt = _parse_date_requirement(gt)
+        self.parser = DateInfoParser(gt, lt)
         self.favor_earliest = favor_earliest
 
     def _is_inaccurate_date(self, str_):
@@ -1348,7 +1370,7 @@ class DateTranslator(FieldTranslator):
         return len(str_) == 4 and year_pattern.match(str_)
 
     def _process_string(self, str_) -> tuple[str, bool]:
-        result = _convert_date_string(str_, self.lt, self.gt)
+        result = self.parser.convert_string(str_)
         if result is not None:
             return result, self._is_inaccurate_date(str_)
         else:
@@ -1383,14 +1405,14 @@ class DateTranslator(FieldTranslator):
         return None, None
 
     def _process_int(self, int_) -> tuple[str, bool]:
-        dt = _parse_timestamp(int_, self.lt, self.gt)
+        dt = self.parser.parse_timestamp(int_)
         if dt is not None:
             return dt.strftime(st.DATE_FORMAT), False
         else:
             return None, None
 
     def _process_datetime(self, dt_object) -> tuple[str, bool]:
-        if self.gt < dt_object < self.lt:
+        if self.parser.is_valid(dt_object):
             return dt_object.strftime(st.DATE_FORMAT), False
         else:
             return None, None
@@ -1609,8 +1631,11 @@ class ContactTranslator(FieldTranslator, SchemaValidationMixin):
 
     def _process_name_string(self, str_) -> str:
         """Process string name data"""
-        if (not _is_valid_string(str_)) or email_address_pattern.match(str_) or\
-                url_pattern.match(str_):
+        if (
+                (not _is_valid_string(str_)) or
+                email_address_pattern.match(str_) or
+                url_pattern.match(str_)
+                ):
             return
         elif not self.is_valid(str_, 'name'):
             return
@@ -2363,7 +2388,8 @@ class LocationTranslator(SchemaValidationMixin, FieldTranslator):
     wkt_format_pattern =\
         re.compile(r'^((POLYGON)|(POINT)|(MULTIPOLYGON)|(MULTIPOINT))\s?\(')
     bbox_data_pattern = re.compile(
-        r'^(-?\d+\.?\d*)((\s-?\d+\.?\d*){3}|((,\s?)-?\d+\.?\d*){3}|((\|\s?)-?\d+\.?\d*){3})$'
+        r'^(-?\d+\.?\d*)((\s-?\d+\.?\d*){3}|((,\s?)-?\d+\.?\d*){3}|'
+        r'((\|\s?)-?\d+\.?\d*){3})$'
     )
     # Below uses .join, because repeated groups cannot be accessed through
     # .group using the default re module
@@ -2842,14 +2868,15 @@ class TimePeriodTranslator(FieldTranslator):
     # Only T and Z allowed, since these are in ISO dates:
     no_written_dates_pattern = re.compile('^[^a-zA-SU-Y]+$')
 
+    duration_pattern = re.compile(r'p(((\d+)(y|m|d|w))|(t(\d+)(h|m|s)))')
+
     def __init__(
             self, *args, lt: datetime.datetime, gt: datetime.datetime,
             begin_end_field_pairs: list[list[str]], dict_key_priority: dict,
             seperators: list[str], remove_strings: list[str], **kwargs
             ):
         super().__init__(*args, **kwargs)
-        self.lt = lt
-        self.gt = gt
+        self.parser = DateInfoParser(gt, lt)
         self.begin_end_field_pairs = begin_end_field_pairs
         self.begin_end_field_sets = [
             set(pair) for pair in begin_end_field_pairs
@@ -2869,7 +2896,10 @@ class TimePeriodTranslator(FieldTranslator):
     def _create_timeperiod(
             self, start: datetime.datetime, end: datetime.datetime
             ):
-        if start > self.gt and end < self.lt and not start > end:
+        if (
+                self.parser.is_valid(start) and self.parser.is_valid(end) and
+                not start > end
+                ):
             return {
                 'type': 'About',
                 'start': start.strftime(st.DATE_FORMAT),
@@ -2881,7 +2911,7 @@ class TimePeriodTranslator(FieldTranslator):
         Parse a simple ISO duration to timedelta object (with one date or time
         value)
         """
-        match = duration_pattern.match(str_)
+        match = self.duration_pattern.match(str_)
         delta = None
         if match:
             dategroup = match.group(2)
@@ -2924,10 +2954,10 @@ class TimePeriodTranslator(FieldTranslator):
         if s.lower().startswith('r/'):
             start_payload = s.split('/')[1]
             end_payload = 'now'
-            start_date = _str2date(start_payload, self.lt, self.gt,
-                                   ignore_now=True)
-            end_date = _str2date(end_payload, self.lt, self.gt,
-                                 period_end=True)
+            start_date = self.parser.parse_string(
+                start_payload, ignore_now=True
+            )
+            end_date = self.parser.parse_string(end_payload, period_end=True)
         else:
             for sep in self.seperators:
                 splitted = s.split(sep)
@@ -2944,10 +2974,12 @@ class TimePeriodTranslator(FieldTranslator):
                         start_payload = splitted[0]
                         end_payload = splitted[1]
 
-                        start_date = _str2date(start_payload, self.lt, self.gt,
-                                               ignore_now=True)
-                        end_date = _str2date(end_payload, self.lt, self.gt,
-                                             period_end=True)
+                        start_date = self.parser.parse_string(
+                            start_payload, ignore_now=True,
+                        )
+                        end_date = self.parser.parse_string(
+                            end_payload, period_end=True
+                        )
 
                         if start_date is not None and end_date is not None:
                             break
@@ -2957,10 +2989,9 @@ class TimePeriodTranslator(FieldTranslator):
                 # a duration, set end-date to now
                 years = re.findall(r'\d{4}', s)
                 parts = s.split('/')
-                endswith_duration = duration_pattern.match(parts[-1])
+                endswith_duration = self.duration_pattern.match(parts[-1])
                 if start_date is not None and not endswith_duration:
-                    end_date = _str2date('now', self.lt, self.gt,
-                                         period_end=True)
+                    end_date = self.parser.now
                 elif endswith_duration or (years and len(years) == 1):
                     if endswith_duration:
                         start_payload = parts[0]
@@ -2970,25 +3001,25 @@ class TimePeriodTranslator(FieldTranslator):
                         # Assume a single day/month/year coverage
                         end_payload = start_payload
 
-                    start_date = _str2date(start_payload, self.lt, self.gt,
-                                           ignore_now=True)
+                    start_date = self.parser.parse_string(
+                        start_payload, ignore_now=True,
+                    )
 
                     if start_date is None:
                         return []
 
                     end_date = None
                     if isinstance(end_payload, str):
-                        end_date = _str2date(end_payload, self.lt, self.gt,
-                                             period_end=True)
+                        end_date = self.parser.parse_string(
+                            end_payload, period_end=True,
+                        )
                     elif isinstance(end_payload, datetime.timedelta):
                         # In case a duration is parsed
                         end_date = start_date + end_payload
 
                     if end_date is None:
                         # Assume now, if no other can be found
-                        end_date = _str2date(
-                            'now', self.lt, self.gt, period_end=True
-                        )
+                        end_date = self.parser.now
 
                 else:
                     return []
@@ -3012,13 +3043,11 @@ class TimePeriodTranslator(FieldTranslator):
                 if key in dict_:
                     payload = dict_[key]
                     if isinstance(payload, str):
-                        edge_date = _str2date(
-                            payload, self.lt, self.gt, **date_kwargs
+                        edge_date = self.parser.parse_string(
+                            payload, **date_kwargs
                         )
                     elif isinstance(payload, int):
-                        edge_date = _parse_timestamp(
-                            payload, self.lt, self.gt
-                        )
+                        edge_date = self.parser.parse_timestamp(payload)
                     if edge_date is not None:
                         timeperiod_data[edge] = edge_date
                         break
@@ -3028,9 +3057,7 @@ class TimePeriodTranslator(FieldTranslator):
                     break  # If a start date is not found, data is invalid
                 else:
                     # If it's the end, assume 'now'
-                    edge_date = _str2date(
-                        'now', self.lt, self.gt, **date_kwargs
-                    )
+                    edge_date = self.parser.now
                     timeperiod_data[edge] = edge_date
         else:
             period = self._create_timeperiod(**timeperiod_data)
@@ -3051,12 +3078,12 @@ class TimePeriodTranslator(FieldTranslator):
         if not (isinstance(start_data, str) and isinstance(end_data, str)):
             return
 
-        start_date = _str2date(start_data, self.lt, self.gt, ignore_now=True)
-        end_date = _str2date(end_data, self.lt, self.gt, period_end=True)
+        start_date = self.parser.parse_string(start_data, ignore_now=True)
+        end_date = self.parser.parse_string(end_data, period_end=True)
         if start_date is None:
             return
         elif end_date is None:
-            end_date = _now_date()
+            end_date = self.parser.now
 
         return self._create_timeperiod(start_date, end_date)
 
@@ -3150,6 +3177,8 @@ class TimePeriodTranslator(FieldTranslator):
 class FormatTranslator(FieldTranslator):
     field_name = 'format'
 
+    file_format_mapping = _loadcfg.file_format_mapping()
+
     # Regex patterns
     non_letter_pattern = re.compile(r'[^a-zA-Z\s]+')
 
@@ -3176,8 +3205,8 @@ class FormatTranslator(FieldTranslator):
 
         str_ = str_.lower().replace('zipped ', '').replace(' file', '')
 
-        if str_ in file_format_mapping:
-            data.append(file_format_mapping[str_])
+        if str_ in self.file_format_mapping:
+            data.append(self.file_format_mapping[str_])
         else:
             if '(' in str_:
                 matches = between_brackets_pattern.findall(str_)

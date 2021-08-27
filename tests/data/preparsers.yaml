@@ -17,6 +17,8 @@ DatePreparser:
         - date
       datetype_dict_keys:
         - _content
+      lt: now
+      gt: 1700-01-01T00:00:00Z
     preparse_function_tests:
     # Test basic preparsing
     - _structured_before:

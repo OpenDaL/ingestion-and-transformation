@@ -63,8 +63,8 @@ def process_data_file(
     print_time = time.time()
     for i, item in enumerate(dataio.iterate_jsonlines(input_loc)):
         count += 1
+        metadata = resource.ResourceMetadata(item)
         try:
-            metadata = resource.ResourceMetadata(item)
             for apply_step in processing_steps:
                 apply_step(metadata)
                 if metadata.is_filtered:
@@ -77,6 +77,8 @@ def process_data_file(
                 )
         except Exception:
             print('At index {}:'.format(i))
+            print(f'item:\n{item}')
+            print(f'metadata.structured:\n{metadata.structured}')
             raise
 
         if (time.time() - print_time) > 10:
