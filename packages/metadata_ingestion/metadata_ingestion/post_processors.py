@@ -11,7 +11,6 @@ from abc import ABC, abstractmethod
 
 from metadata_ingestion import _loadcfg
 
-from metadata_ingestion.translate import subject_scheme_data
 from metadata_ingestion.resource import ResourceMetadata
 
 
@@ -242,6 +241,8 @@ class Scorer(PostProcessor):
         5: 0.5
     }
 
+    subject_scheme_data = _loadcfg.subject_scheme()
+
     desc_sc = [[0, 0.20], [400, 1], [1000, 1], [2048, 0.5]]
     title_sc = [[0, 0], [50, 1], [100, 1], [256, 0.5]]
 
@@ -277,7 +278,7 @@ class Scorer(PostProcessor):
         """
         Determine the depth of a subject in the hierarchy (least deep mention)
         """
-        s_data = subject_scheme_data[subject_id]
+        s_data = self.subject_scheme_data[subject_id]
         all_parents = s_data['parents'] + s_data['relations']
         if len(all_parents) == 0:
             return 0

@@ -3266,8 +3266,6 @@ class LanguageTranslator(FieldTranslator):
         super().__init__(*args, **kwargs)
         self.dict_key_priority = dict_key_priority
 
-        # TODO: Check if these are only used here. If this is the case, add to
-        # the translator configuration
         self.language_mapping = _loadcfg.language_mapping()
         self.two_letter_language_codes = list(set(
             [v for k, v in self.language_mapping.items()]
@@ -3383,8 +3381,6 @@ class CoordinateSystemTranslator(FieldTranslator):
         super().__init__(*args, **kwargs)
         self.dict_key_priority = dict_key_priority
 
-        # TODO: Check if these are only used here. If so, move to translator
-        # configuration
         self.epsg_codes = set(_loadcfg.epsg_codes())
         self.name_to_epsg = _loadcfg.name_to_epsg()
 
