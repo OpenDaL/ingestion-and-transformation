@@ -10,7 +10,7 @@ setup(
         'xmltodict>=0.11.0',
         'unidecode>=1.0.22',
         'html2text>=2018.1.9',
-        'dateparser>=0.7.0',
+        'dateparser>=1.0.0',
         'shapely>=1.6.4',
         'pyyaml>=5.1.1',
         'aiohttp>=3.5.4',
