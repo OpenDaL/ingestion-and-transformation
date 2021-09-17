@@ -17,9 +17,6 @@ setup(
         'cloudscraper>=1.2.28',
         'fastjsonschema>=2.15.0,<3.0.0'
         ],
-    package_data={
-        'metadata_ingestion': ['default_config.yaml']
-    },
     zip_safe=False,  # This allows settings.py to be edited after install
     author="Tom Brouwer",
     author_email="tombrouwer@outlook.com",

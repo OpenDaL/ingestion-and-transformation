@@ -14,19 +14,12 @@ import math
 import cloudscraper
 import copy
 import time
+from typing import Union, Any, Iterator
 
 import aiohttp
 import xmltodict
 
-from . import settings, dataio, exceptions, _aux
-
-NO_RETRY_CODES = {
-    401: 'Unauthorized',
-    402: 'Payment Required',
-    403: 'Forbidden',
-    407: 'Proxy Authentication Required',
-    410: 'Gone'
-}
+from . import settings, dataio, exceptions, _common
 
 DEFAULT_TIMEOUT = {
     "total": 300,
@@ -36,84 +29,82 @@ DEFAULT_TIMEOUT = {
 }
 
 
-def get_cert_loc(filename):
-    """
-    Gets the location of the certificate file for the given filename
-    """
-    return Path(settings.CERT_DIR, filename)
-
-
 class Harvester:
     """
-    A base harvester class, used by specific harvesters to inherit from
-
-    Arguments:
-        id_ --- str: The unique identifier for the portal that's harvested (
-        used in output file names and in logging)
-
-        api_url --- str: The base url of the API endpoint
-
-        output_path --- pathlib.Path/str: The path to output the data retrieved
-        from the API
-
-        download_delay=1 --- int: The wait time in seconds between two
-        consecutive requests
-
-        retry_delays=settings.DELAYS --- list[int]: The delays when retrying (
-        in seconds), the number of delays will be the number of retries for
-        each request
-
-        cache_size=1000 --- int: The number of resource to cache in memory,
-        before flushing to disk
-
-        timeout=DEFAULT_TIMEOUT --- dict: Timeout parameters that are passed as
-        **kwargs to aiohttp.ClientTimeout
-
-        max_size=50000000 --- int: The maximum size of total returned results
-        AND the maximum size of a request in Bytes for harvesters that use
-        the get_chunked() method. If the harvested data exceeds this size, a
-        exceptions.UnexpectedDataError is raised
-
-        certfile=None --- bool/pathlib.Path: If the SSL settings for a server
-        are not correctly configured, you can define a name of a local certfile
-        here (Is automatically prefixed with settings.CERT_DIR). CA Bundle for
-        a website can be downloaded from https://www.ssllabs.com/ssltest/
-
-        encoding=None --- The encoding of the response. If None, the aoihttp
-        package will attempt auto-detection
-
-        invalid_xml_regex=None --- str: The regex pattern to escape invalid
-        html characters, parts matching the regex are replaced by '�' (XML
-        Harvesters Only)
-
-        rows=None --- int: The number of results to return per page (Only
-        for harvesters that can control this)
-
-        cloudflare_bypass=False --- bool: Whether to check for, and try to
-        bypass cloudflare protection, in case a 503 status is returned
-
-        user_agent=None --- str: User agent string. If specified it overrides
-        the default aiohttp user agent
-
-        is_single_request=False --- bool: If True, the delays and checks
-        between yielding new data is skipped, since it's all from one request
-
-        allow_repeating_data=False --- bool: If True, the check for repeating
-        data is disabled
-
-        additional_headers --- dict: Update the Session headers using this
-        dict
+    A base harvester class, used by specific harvesters to inherit from.
     """
+    NO_RETRY_CODES = {
+        401: 'Unauthorized',
+        402: 'Payment Required',
+        403: 'Forbidden',
+        407: 'Proxy Authentication Required',
+        410: 'Gone'
+    }
 
-    def __init__(self, id_=None, api_url='', output_path='',
-                 download_delay=1, retry_delays=settings.DELAYS,
-                 cache_size=1000, timeout=DEFAULT_TIMEOUT, max_size=50000000,
-                 certfile=None, encoding=None, invalid_xml_regex=None,
-                 rows=None, cloudflare_bypass=False, user_agent=None,
-                 is_single_request=False, allow_repeating_data=False,
-                 additional_headers=None):
+    def __init__(
+            self, *, id_: str, api_url: str, output_path: Union[Path, str],
+            download_delay: int = 1, retry_delays: list[int] = settings.DELAYS,
+            cache_size: int = 1000, timeout: dict = DEFAULT_TIMEOUT,
+            max_size: int = 50000000, certfile: str = None,
+            encoding: str = None, invalid_xml_regex: str = None,
+            rows: int = None, cloudflare_bypass: bool = False,
+            user_agent: str = None, is_single_request: bool = False,
+            allow_repeating_data: bool = False, additional_headers: dict = None
+            ):
         """
-        Create a new harvester
+        Initialize the Harvester Instance
+
+        Args:
+            id_:
+                The unique identifier for the portal that's harvested (used in
+                output file names and in logging)
+            api_url:
+                The base url of the API endpoint
+            output_path:
+                The path to output the data retrieved from the API
+            download_delay:
+                The wait time in seconds between two consecutive requests
+            retry_delays:
+                The delays when retrying (in seconds), the number of delays
+                will be the number of retries for each request
+            cache_size:
+                The number of resource to cache in memory, before flushing to
+                disk
+            timeout:
+                Timeout parameters that are passed as **kwargs to
+                aiohttp.ClientTimeout
+            max_size:
+                The maximum size of total returned results AND the maximum size
+                of a request in Bytes for harvesters that use the get_chunked()
+                method. If the harvested data exceeds this size, an
+                exceptions.TooMuchDataError is raised
+            certfile:
+                If the SSL settings for a server are not correctly configured,
+                you can define a name of a local certfile here (Is
+                automatically prefixed with settings.CERT_DIR). CA Bundle for a
+                website can be downloaded from https://www.ssllabs.com/ssltest/
+            encoding:
+                The encoding of the response. If None, the aoihttp package will
+                attempt auto-detection
+            invalid_xml_regex:
+                The regex pattern to escape invalid html characters, parts
+                matching the regex are replaced by '�' (XML Harvesters Only)
+            rows:
+                The number of results to return per page (Only for harvesters
+                that can control this)
+            cloudflare_bypass:
+                Whether to check for, and try to bypass cloudflare protection,
+                in case a 503 status is returned
+            user_agent:
+                User agent string. If specified it overrides the default
+                aiohttp user agent
+            is_single_request:
+                If True, the delays and checks between yielding new data is
+                skipped, since it's all from one request
+            allow_repeating_data:
+                If True, the check for repeating data is disabled
+            additional_headers:
+                Update the Session headers using this dict
         """
         self.download_delay = download_delay
         self.retry_delays = retry_delays
@@ -140,8 +131,9 @@ class Harvester:
         # self.has_failed, to still make sure the .INCOMPLETE is added to the
         # file
         self.has_failed = False
-        self.cert_loc = get_cert_loc(certfile) if\
-            certfile is not None else None
+        self.cert_loc = None
+        if certfile is not None:
+            self.cert_loc = self._get_cert_loc(certfile)
         self.invalid_xml_pattern = re.compile(invalid_xml_regex) if\
             invalid_xml_regex is not None else None
         # Set the uid of the output, based on id and current time
@@ -150,6 +142,12 @@ class Harvester:
         ) + 'Z'
         self.output_uid = id_plus_time.replace(':', '-')  # Filesystem compat.
         self.total_logged = False
+
+    def _get_cert_loc(self, filename: str) -> Path:
+        """
+        Gets the location of the certificate file for the given filename
+        """
+        return Path(settings.CERT_DIR, filename)
 
     def _prerun_init(self):
         """
@@ -210,7 +208,7 @@ class Harvester:
                     out_data = []
                     self.total += in_cache
                     if self.total > self.max_size:
-                        raise exceptions.UnexpectedDataError(
+                        raise exceptions.TooMuchDataError(
                             'More items harvested then max_size parameter'
                         )
                     self.log_download_progress(self.total)
@@ -251,10 +249,10 @@ class Harvester:
 
         await self.session.close()
 
-    def output(self, data, last=False):
+    def output(self, data: Any, last: bool = False):
         """
-        Write the output to a file. If last is True, the file is renamed to
-        remove the .INCOMPLETE designation
+        Writes the output to a file. If last is True, the file is renamed to
+        remove the .INCOMPLETE suffix
         """
         out_loc = Path(self.output_path, self.output_uid + '.jsonl.INCOMPLETE')
         dataio.savejsonlines(data, out_loc, mode=self.write_mode)
@@ -269,9 +267,10 @@ class Harvester:
         Async decorator (factory) to retry functions when they fail
 
         Arguments:
-            slf=None --- Placeholder for if self is passed
-
-            error_types --- tuple: The error types for which it should retry
+            slf:
+                Placeholder for if self is passed
+            retry_on:
+                Exception, or tuple of exceptions handled in the try/except
 
         Note: If used at the top level of the class, self is not passed, so its
         taken from the first wrapper parameter, since it's passed to the
@@ -372,37 +371,39 @@ class Harvester:
 
         return wrapper
 
-    async def request_data(self):
+    async def request_data(self) -> Iterator[list[dict]]:
         """
         Override this function, to have a harvester yield data.
+
+        Yields:
+            Typically,this function would yield the resources returned by one
+            API request as a list of dictionaries
         """
-        raise NotImplementedError('You have to define a request_data'
-                                  ' function when subclassing Harvester')
+        raise NotImplementedError(
+            'Please override this function in child classes'
+        )
 
     async def bypass_cloudflare(
-        self, response_headers, response_text, user_agent,
+        self, response_headers: dict, response_text: str, user_agent: str,
         *request_args, **request_kwargs
-            ):
+            ) -> Union[str, None]:
         """
         Try to bypass cloudflare and redo request
 
         Arguments:
-            response_headers --- dict: The response headers that were returned
-
-            response_text --- str: The text from the response
-
-            user_agent --- str: The user agent used in the initial request
-
-            *request_args --- Arguments passed to the request function
-
-            **request_kwargs --- Keyword Arguments passed to the request
-            function
+            response_headers:
+                The response headers that were returned
+            response_text:
+                The text from the response
+            user_agent:
+                The user agent used in the initial request
+            *request_args:
+                Arguments passed to the request function
+            **request_kwargs:
+                Keyword Arguments passed to the request function
 
         Returns:
-            str/NoneType --- In case of a succesfull bypass, the result string
-            is returned. If unsuccessfull, nothing is returned
-
-        The args and kwargs are used to retry the request
+            In case of a succesfull bypass, the result string is returned.
         """
         # If it's not a cloudflare challenge, or there was already and attempt
         # to bypass, do nothing
@@ -439,15 +440,18 @@ class Harvester:
     @retry_on_fail(retry_on=(aiohttp.ClientError, exceptions.InvalidStatusCode,
                              asyncio.TimeoutError))
     @_is_request  # After retry, since it should be enforced if retry delay=0
-    async def get_request(self, *args, **kwargs):
+    async def get_request(self, *args, **kwargs) -> str:
         """
         aiohttp get request with error handling. See
         aiohttp.ClienSession.get for documentation
 
-        Arguments:
-            *args --- Arguments for aiohttp.ClientSession.get
-
-            **kwargs --- Keyword Arguments for aiohttp.ClientSession.get
+        Args:
+            *args:
+                Arguments for aiohttp.ClientSession.get
+            **kwargs:
+                Keyword Arguments for aiohttp.ClientSession.get
+        Returns:
+            Response.text
         """
         self.logger.debug(
             'GET Request: {}, {}'.format(
@@ -462,10 +466,10 @@ class Harvester:
             if status == 200:
                 return result
             else:
-                if status in NO_RETRY_CODES:
+                if status in self.NO_RETRY_CODES:
                     raise exceptions.NonRetryableHTTPStatus(
                         status,
-                        NO_RETRY_CODES[status]
+                        self.NO_RETRY_CODES[status]
                     )
                 if (status == 503 and self.cloudflare_bypass):
                     result = await self.bypass_cloudflare(
@@ -484,15 +488,19 @@ class Harvester:
     @retry_on_fail(retry_on=(aiohttp.ClientError, exceptions.InvalidStatusCode,
                              asyncio.TimeoutError))
     @_is_request  # After retry, since it should be enforced if retry delay=0
-    async def post_request(self, *args, **kwargs):
+    async def post_request(self, *args, **kwargs) -> str:
         """
         aiohttp post request with error handling. See
-        aiohttp.ClienSession.get for documentation
+        aiohttp.ClienSession.post for documentation
 
         Arguments:
-            *args --- Arguments for aiohttp.ClientSession.get
+            *args:
+                Arguments for aiohttp.ClientSession.post
+            **kwargs:
+                Keyword Arguments for aiohttp.ClientSession.post
 
-            **kwargs --- Keyword Arguments for aiohttp.ClientSession.get
+        Returns:
+            Response.text
         """
         self.logger.debug(
             'POST Request: {}, {}'.format(
@@ -507,10 +515,10 @@ class Harvester:
             if status == 200:
                 return result
             else:
-                if status in NO_RETRY_CODES:
+                if status in self.NO_RETRY_CODES:
                     raise exceptions.NonRetryableHTTPStatus(
                         status,
-                        NO_RETRY_CODES[status]
+                        self.NO_RETRY_CODES[status]
                     )
                 if (status == 503 and self.cloudflare_bypass):
                     result = await self.bypass_cloudflare(
@@ -529,7 +537,7 @@ class Harvester:
     @retry_on_fail(retry_on=(aiohttp.ClientError, exceptions.InvalidStatusCode,
                              asyncio.TimeoutError))
     @_is_request  # After retry, since it should be enforced if retry delay=0
-    async def get_chuncked(self, *args, **kwargs):
+    async def get_chuncked(self, *args, **kwargs) -> str:
         """
         Like get_request, except it gets data in chuncks of 1MB and checks if
         max_size is not exceeded
@@ -544,7 +552,7 @@ class Harvester:
             async for data in resp.content.iter_chunked(1024 * 1024):
                 size += len(data)
                 if size > self.max_size:
-                    raise exceptions.UnexpectedDataError(
+                    raise exceptions.TooMuchDataError(
                         'Single response size bigger than max_size in bytes'
                     )
                 result += data
@@ -560,31 +568,32 @@ class Harvester:
 
             if status == 200:
                 return result
-            elif status in NO_RETRY_CODES:
+            elif status in self.NO_RETRY_CODES:
                 raise exceptions.NonRetryableHTTPStatus(
                     status,
-                    NO_RETRY_CODES[status]
+                    self.NO_RETRY_CODES[status]
                 )
             else:
                 raise exceptions.InvalidStatusCode(status,
                                                    text_response=result)
 
     # Note this does not retry on fail, since it may keep on returning partial
-    # results causing duplicates, and the decorators are only suited for funcs
-    # Please note that download delays are also not implemented for this
-    async def get_lines(self, *args, **kwargs):
+    # results causing duplicates, and the decorators are only suited for
+    # regular functions Please note that download delays are also not
+    # implemented for this
+    async def get_lines(self, *args, **kwargs) -> Iterator[str]:
         """
-        Async generator that does a get requests, and returns the result line
+        Async generator that does a get requests, and yields the result line
         by line
         """
         async with self.session.get(*args, **kwargs, ssl=self.ssl) as resp:
             status = resp.status
 
             if status != 200:
-                if status in NO_RETRY_CODES:
+                if status in self.NO_RETRY_CODES:
                     raise exceptions.NonRetryableHTTPStatus(
                         status,
-                        NO_RETRY_CODES[status]
+                        self.NO_RETRY_CODES[status]
                     )
                 else:
                     raise exceptions.InvalidStatusCode(status,
@@ -600,7 +609,9 @@ class Harvester:
                 yield line.decode(encoding, errors='replace')
 
     @retry_on_fail(retry_on=(json.JSONDecodeError))
-    async def get_json(self, *args, get_chuncked=False, **kwargs):
+    async def get_json(
+            self, *args, get_chuncked: bool = False, **kwargs
+            ) -> Any:
         """
         Get data, and return the result as JSON.
         See aiohttp.ClienSession.get for parameter documentation
@@ -617,9 +628,9 @@ class Harvester:
         return json.loads(text_response)
 
     @retry_on_fail(retry_on=(json.JSONDecodeError))
-    async def post_json(self, *args, **kwargs):
+    async def post_json(self, *args, **kwargs) -> Any:
         """
-        Get data (POST Request), and return the result as JSON.
+        Get data (POST Request), and return the response parsed from JSON.
         See aiohttp.ClienSession.post for parameter documentation
         """
         text_response = await self.post_request(*args, **kwargs)
@@ -627,7 +638,9 @@ class Harvester:
         return json.loads(text_response)
 
     @retry_on_fail(retry_on=(xmltodict.expat.ExpatError))
-    async def get_xml(self, *args, get_chuncked=False, **kwargs):
+    async def get_xml(
+            self, *args, get_chuncked: bool = False, **kwargs
+            ) -> Any:
         """
         Get XML data, and return the result as a dict. See
         aiohttp.ClienSession.get for parameter documentation
@@ -645,15 +658,15 @@ class Harvester:
             text_response = self.invalid_xml_pattern.sub('�', text_response)
 
         # Limit depth, to prevent recursionerrors at later point
-        return _aux.limit_depth(xmltodict.parse(text_response), 50)
+        return _common.limit_depth(xmltodict.parse(text_response), 50)
 
-    def log_download_progress(self, number):
+    def log_download_progress(self, number: int):
         """
         Log the download progress
         """
         self.logger.info('Downloaded {} items'.format(number))
 
-    def log_total(self, number):
+    def log_total(self, number: int):
         """
         Log the total number of entries (Only done on first time triggered)
         """
@@ -664,30 +677,38 @@ class Harvester:
 
 class CKAN3Harvester(Harvester):
     """
-    An Async harvester for CKAN v3 APIs. The init parameters of the base
-    harvester are extended by:
-        rows=1000 --- int: The number of rows to return for each API request
-
-        custom_endpoint=None --- str: A custom endpoint url suffix, in case
-        it's not at the default location (/3/action/package_search)
-
-        throttle_on_invalid_status=False --- bool: Throttle if an invalid
-        status code is retured
-
-        iterate_until_total=False --- bool: By default, new requests stop if a
-        subsequent request yields an emtpy 'results' key. In some cases
-        however, results seem to be filtered in API, which can lead to
-        intermediary requests being empty. Setting 'true' here, makes sure
-        requests stop only when start > total, where it uses the total
-        reported in the most recent request
-
-        skip_on_fail=False --- bool: If after throttling a request still fails,
-        skip the page by incrementing the 'rows' parameter
+    An Async harvester for CKAN v3 APIs.
     """
 
-    def __init__(self, *args, rows=1000, custom_endpoint=None,
-                 throttle_on_invalid_status=False,
-                 iterate_until_total=False, skip_on_fail=False, **kwargs):
+    def __init__(
+            self, *args, rows: int = 1000, custom_endpoint: str = None,
+            throttle_on_invalid_status: bool = False,
+            iterate_until_total: bool = False, skip_on_fail: bool = False,
+            **kwargs
+            ):
+        """
+        Initializes the CKAN3Harvester instance
+
+        The init parameters of the Harvester class are extended with the
+        following:
+
+        Args:
+            custom_endpoint:
+                A custom endpoint url suffix, in case it's not at the default
+                location (/3/action/package_search)
+            throttle_on_invalid_status:
+                By default, don't throttle if a invalid status is returned
+            iterate_until_total:
+                By default, new requests stop if a subsequent request yields
+                an emtpy 'results' key. In some cases however, results seem to
+                be filtered in API, which can lead to intermediary requests
+                being empty. Setting 'true' here, makes sure requests stop only
+                when start > total, where it uses the total reported in the
+                most recent request
+            skip_on_fail:
+                If after throttling a request still fails, skip the page by
+                incrementing the 'rows' parameter; disabled by default
+        """
         self.custom_endpoint = custom_endpoint
         self.throttled = False
         self.throttle_on_invalid_status = throttle_on_invalid_status
@@ -696,7 +717,7 @@ class CKAN3Harvester(Harvester):
         self.skip_on_fail = skip_on_fail
         super().__init__(*args, rows=rows, **kwargs)
 
-    async def request_data(self):
+    async def request_data(self) -> Iterator[list[dict]]:
         """
         Async generator iterating through the API responses
         """
@@ -777,21 +798,29 @@ class CKAN3Harvester(Harvester):
 
 class OAIPMHHarvester(Harvester):
     """
-    A harvester for OAI-PMH endpoints. Extends the base harvester with the
-    following arguments:
-
-        metadata_prefix='oai_dc' --- str: The metadata format requested from
-        the API
-
-        collection_set=None --- str|list[str]: The collection set(s) to query
-        (pass a list if multiple)
-
-        preserve_params=False --- bool: Set to True if URL params like
-        metadataPrefix must be preserved in requests with a resumptionToken
+    A harvester for OAI-PMH endpoints.
     """
 
-    def __init__(self, *args, metadata_prefix='oai_dc', collection_set=None,
-                 preserve_params=False, **kwargs):
+    def __init__(
+            self, *args, metadata_prefix: str = 'oai_dc',
+            collection_set: Union[str, list[str]] = None,
+            preserve_params: bool = False, **kwargs
+            ):
+        """
+        Initializes the OAIPMHHarvester instance
+
+        Extends the base harvester with additional arguments:
+
+        Args:
+            metadata_prefix:
+                Optional; The metadata format requested from the API
+            collection_set:
+                Optional; The collection set(s) to query (pass a list if
+                multiple)
+            preserve_params:
+                Optional; Set to True if URL params like metadataPrefix must be
+                preserved in requests with a resumptionToken
+        """
         self.metadata_prefix = metadata_prefix
         if not isinstance(collection_set, list):
             self.collection_set = [collection_set]
@@ -800,7 +829,7 @@ class OAIPMHHarvester(Harvester):
         self.preserve_params = preserve_params
         super().__init__(*args, encoding='utf-8', **kwargs)
 
-    async def request_data(self):
+    async def request_data(self) -> Iterator[list[dict]]:
         """
         Async generator to iterate through consecutive API responses
         """
@@ -810,7 +839,7 @@ class OAIPMHHarvester(Harvester):
             Get data with retries. Returns the results and a resumptiontoken
             """
             response_data = await self.get_xml(endpoint, params=prms)
-            cleaned_data = _aux.remove_xml_namespaces(response_data)
+            cleaned_data = _common.remove_xml_namespaces(response_data)
             try:
                 list_rec = cleaned_data['OAI-PMH']['ListRecords']
             except KeyError as e:
@@ -838,7 +867,9 @@ class OAIPMHHarvester(Harvester):
             if list_rec:
                 resumption_token = list_rec.get('resumptionToken')
             if resumption_token is None:
-                resumption_token = cleaned_data['OAI-PMH'].get('resumptionToken')
+                resumption_token = cleaned_data['OAI-PMH'].get(
+                    'resumptionToken'
+                )
             # Because the resumtion token itself is also none sometimes, you
             # cannot Set a dict as default, and do a .get on it...
             if resumption_token is not None and\
@@ -894,7 +925,7 @@ class OAIPMHHarvester(Harvester):
                 except (aiohttp.ClientError, exceptions.InvalidStatusCode,
                         asyncio.TimeoutError, KeyError):
                     if multiple_collection_sets:
-                        self.has_failed = True  # Filename will contain .INCOMPLETE
+                        self.has_failed = True
                         self.logger.exception(
                             'Harvesting of set {} failed:'.format(cset)
                         )
@@ -916,16 +947,7 @@ class OAIPMHHarvester(Harvester):
 
 
 class CSW2Harvester(Harvester):
-    """
-    A Harvester for CSW v2.0.2 endpoints. Extends the base harvester with the
-    following arguments:
-
-        rows=100 --- int: The number of results to get per page (maxRecords
-        CSW parameter)
-
-        harvest_format='csw' --- str: The format to harvest, which maps to a
-        typeName/outputSchema pair. Options are 'csw' and 'gmd'.
-    """
+    """A Harvester for CSW v2.0.2 endpoints."""
     format_param_mapping = {
         'csw': {
             'typeNames': 'csw:Record',
@@ -937,12 +959,25 @@ class CSW2Harvester(Harvester):
         }
     }
 
-    def __init__(self, *args, rows=100, harvest_format='csw', **kwargs):
+    def __init__(
+            self, *args, rows: int = 100, harvest_format: str = 'csw', **kwargs
+            ):
+        """
+        Initializes the CSW2 Harvester Instance
+
+        The arguments of the Harvester class are extended with the
+        following:
+
+        Args:
+            harvest_format:
+                Optional; The format to harvest, which maps to a
+                typeName/outputSchema pair. Options are 'csw' and 'gmd'.
+        """
         self.harvest_format = harvest_format
         self.format_params = self.format_param_mapping[harvest_format]
         super().__init__(*args, rows=rows, **kwargs)
 
-    async def request_data(self):
+    async def request_data(self) -> Iterator[list[dict]]:
         """
         Async generator to iterate through consecutive API responses
         """
@@ -953,7 +988,7 @@ class CSW2Harvester(Harvester):
             """
             response_data = await self.get_xml(endpoint, params=prms)
 
-            cleaned = _aux.remove_xml_namespaces(response_data)
+            cleaned = _common.remove_xml_namespaces(response_data)
             search_results = cleaned['GetRecordsResponse']['SearchResults']
             if self.harvest_format == 'gmd':
                 payload = search_results.get('MD_Metadata')
@@ -997,27 +1032,28 @@ class CSW2Harvester(Harvester):
 
 
 class GeonodeHarvester(Harvester):
-    """
-    A harvester for Geonode instances. Extends the base harvester with the
-    following arguments:
+    """A harvester for Geonode instances"""
 
-        rows=100 --- int: The number of results to get per page ('limit'
-        API parameter)
+    def __init__(
+            self, *args, rows: int = 100, get_layers: bool = True,
+            get_documents: bool = True, **kwargs
+            ):
+        """
+        Initializes the GeonodeHarvester instance
 
-        get_layers=True --- bool: Whether to get layer metdata from the layers
-        endpoint
+        Extends the Harvester class arguments with the following:
 
-        get_documents=True --- bool: Whether to get document metadata from the
-        documents endpoint
-    """
-
-    def __init__(self, *args, rows=100, get_layers=True, get_documents=True,
-                 **kwargs):
+        Args:
+            get_layers:
+                Whether to get layer metdata from the layers endpoint
+            get_documents:
+                Whether to get document metadata from the documents endpoint
+        """
         self.get_layers = get_layers
         self.get_documents = get_documents
         super().__init__(*args, rows=rows, **kwargs)
 
-    async def request_data(self):
+    async def request_data(self) -> Iterator[list[dict]]:
         """
         Async generator to iterate through consecutive API responses
         """
@@ -1065,37 +1101,36 @@ class GeonodeHarvester(Harvester):
 
 
 class DataverseHarvester(Harvester):
-    """
-    A harvester for Dataverse websites. Extends the base harvester with the
-    following arguments:
-
-        rows=100 --- int: The number of results to get per page (per_page API
-        parameter)
-
-        API_key=None --- str: An API key that's used to authenticate with the
-        API
-
-        key_as_url_param=False --- bool: Whether to include the API key as a
-        URL parameter, rather than as a request header (this fails for some
-        sites)
-
-        use_exporter=None --- str: If given, this exporter is used to retrieve
-        the data for each dataset through the 'api/datasets/export' endpoint.
-        Please note that this requires a request per dataset, which means the
-        performance of harvesting reduces greatly (Note: This only supports
-        JSON export formats)
-    """
+    """A harvester for Dataverse websites."""
 
     def __init__(
-            self, *args, rows=100, API_key=None, key_as_url_param=False,
-            use_exporter=None, **kwargs
+            self, *args, rows: int = 100, API_key: str = None,
+            key_as_url_param: bool = False, use_exporter: str = None, **kwargs
             ):
+        """
+        Initializes the DataverseHarvester instance
+
+        Extends the base harvester with the following arguments:
+
+        Args:
+            API_key:
+                Optional; API key that's used for authentication
+            key_as_url_param:
+                Whether to include the API key as a URL parameter, rather
+                than as a request header (this fails for some sites)
+            use_exporter:
+                If given, this exporter is used to retrieve the data for each
+                dataset through the 'api/datasets/export' endpoint. Please note
+                that this requires a request per dataset, which means the
+                performance of harvesting reduces greatly (Note: This only
+                supports JSON export formats)
+        """
         self.API_key = API_key
         self.key_as_url_param = key_as_url_param
         self.use_exporter = use_exporter
         super().__init__(*args, rows=rows, **kwargs)
 
-    async def request_data(self):
+    async def request_data(self) -> Iterator[list[dict]]:
         """
         Async generator to iterate through consecutive API responses
         """
@@ -1159,22 +1194,20 @@ class DataverseHarvester(Harvester):
 
 
 class DKANHarvester(Harvester):
-    """
-    An Async harvester for DKAN APIs. The init parameters of the base
-    harvester are extended by:
-        rows=10 --- int: The number of resources to return for each request (
-        'limit' api parameter)
+    """An Async harvester for DKAN APIs"""
 
-        one_request=False --- bool: If true, it's assumed all data is retrieved
-        with the first request (Use in combination with rows and a max_size
-        setting, to yield an error if the first request doesn't yield all data)
-    """
+    def __init__(
+            self, *args, rows: int = 10, one_request: bool = False, **kwargs
+            ):
+        """
+        Initializes the DKANHarvester instance
 
-    def __init__(self, *args, rows=10, one_request=False, **kwargs):
+        Arguments are inherited from Harvester class
+        """
         self.one_request = one_request
         super().__init__(*args, rows=rows, **kwargs)
 
-    async def request_data(self):
+    async def request_data(self) -> Iterator[list[dict]]:
         """
         Async generator iterating through the API responses
         """
@@ -1212,16 +1245,17 @@ class DKANHarvester(Harvester):
 
 
 class DataONEHarvester(Harvester):
-    """
-    An Async harvester for DataONE. The init parameters of the base
-    harvester are extended by:
-        rows=2000 --- int: The number of resources to return for each request
-    """
+    """An Async harvester for DataONE"""
 
-    def __init__(self, *args, rows=2000, **kwargs):
+    def __init__(self, *args, rows: int = 2000, **kwargs):
+        """
+        Initializes the DataOneHarvester instance
+
+        Arguments are the same as for the Harvester class
+        """
         super().__init__(*args, rows=rows, **kwargs)
 
-    async def request_data(self):
+    async def request_data(self) -> Iterator[list[dict]]:
         """
         Async generator iterating through the API responses
         """
@@ -1230,8 +1264,10 @@ class DataONEHarvester(Harvester):
             response_data = await self.get_json(endpoint, params=prms)
             return response_data['response']['docs']
 
-        endpoint_url = self.api_url.strip('/') +\
-            '/v2/query/solr/?q=%20-obsoletedBy:*%20AND%20formatType:METADATA&wt=json'
+        endpoint_url = self.api_url.strip('/') + (
+            '/v2/query/solr/?'
+            'q=%20-obsoletedBy:*%20AND%20formatType:METADATA&wt=json'
+        )
 
         add_params = {
             'rows': self.rows
@@ -1250,26 +1286,32 @@ class SingleJSONHarvester(Harvester):
     """
     An async harvester to gather data from a single JSON payload that's
     returned by a server.
-
-    The max_size parameter (integer, maximum size of response in bytes) should
-    be set explicitly, to not run out of memory.
-
-    Base harvester arguments are further extended by:
-        result_key=None --- str/dict: The path where the list of results is
-        found (e.g. {'result': 'hits'}, gets it from data['result']['hits'], If
-        None, the root is saved)
     """
 
-    def __init__(self, *args, max_size, result_key=None, **kwargs):
+    def __init__(
+            self, *args, max_size: int, result_key: Union[str, dict] = None,
+            **kwargs
+            ):
+        """
+        Initializes the SingleJSONHarvester Instance
+
+        The base Harvester class arguments are extended by:
+
+        Args:
+            max_size:
+                (Now a required argument)
+            result_key:
+                The path in the JSON response to find the array with results
+        """
         self.result_key = result_key
         super().__init__(*args, max_size=max_size, **kwargs)
 
-    def get_result(self, rdata):
+    def get_result(self, rdata: Union[dict, list]) -> list[dict]:
         """
         Get the resulting array from the response_data (parsed JSON)
         """
         if self.result_key is not None:
-            result = _aux.get_data_from_loc(rdata, self.result_key)
+            result = _common.get_data_from_loc(rdata, self.result_key)
             if not isinstance(result, list):
                 raise exceptions.UnexpectedDataError(
                     'No array at "result_key" location'
@@ -1282,7 +1324,7 @@ class SingleJSONHarvester(Harvester):
                 )
             return rdata
 
-    async def request_data(self):
+    async def request_data(self) -> Iterator[list[dict]]:
         """
         Async generator iterating through the API responses
         """
@@ -1296,18 +1338,19 @@ class SingleJSONHarvester(Harvester):
 
 
 class ArcGISOpenDataHarvester(Harvester):
-    """
-    An Async harvester for the ArcGIS Open Data API (v3). Init parameters are
-    the same as the base harvester ('rows' is 99 by default, which is the max
-    of the API).
-    """
+    """An Async harvester for the ArcGIS Open Data API (v3)"""
 
-    def __init__(self, *args, rows=99, **kwargs):
+    def __init__(self, *args, rows: int = 99, **kwargs):
+        """
+        Initializes the ArcGISOpenDataHarvester instance
+
+        Arguments are the same as with the base Harvester class
+        """
         if rows >= 100:
             raise ValueError('ArcGIS V3 API only supports rows < 100')
         super().__init__(*args, rows=rows, **kwargs)
 
-    async def request_data(self):
+    async def request_data(self) -> Iterator[list[dict]]:
         """
         Async generator iterating through the API responses
         """
@@ -1339,7 +1382,11 @@ class ArcGISOpenDataHarvester(Harvester):
         params = {
             'sort': '-modified',
             'filter[openData]': "true",
-            'fields[datasets]': 'access,categories,collection,created,description,extent,license,licenseInfo,modified,name,organization,slug,structuredLicense,tags,type,typeCategories',
+            'fields[datasets]': (
+                'access,categories,collection,created,description,extent,'
+                'license,licenseInfo,modified,name,organization,slug,'
+                'structuredLicense,tags,type,typeCategories'
+            ),
             'page[size]': self.rows,
         }
 
@@ -1402,15 +1449,17 @@ class ArcGISOpenDataHarvester(Harvester):
 
 
 class SocrataDiscoveryHarvester(Harvester):
-    """
-    An Async harvester for the Socrata Discovery API (v1). Init parameters are
-    the same as the base harvester. ('rows' is 10000 by default)
-    """
+    """An Async harvester for the Socrata Discovery API (v1)."""
 
-    def __init__(self, *args, rows=10000, **kwargs):
+    def __init__(self, *args, rows: int = 10000, **kwargs):
+        """
+        Initializes the SocrataDiscoveryHarvester instance
+
+        Uses the same arguments as the base 'Harvester' class
+        """
         super().__init__(*args, rows=rows, **kwargs)
 
-    async def request_data(self):
+    async def request_data(self) -> Iterator[list[dict]]:
         """
         Async generator iterating through the API responses
         """
@@ -1442,20 +1491,21 @@ class SocrataDiscoveryHarvester(Harvester):
 
 
 class KnoemaDCATHarvester(Harvester):
-    """
-    An Async harvester for Knoema API v1.0 DCAT. Init parameters are the same
-    as the base harvester (default download_delay reduced to 0.2, because
-    each request is only one dataset)
-    """
+    """An Async harvester for Knoema API v1.0 DCAT."""
 
-    def __init__(self, *args, download_delay=0.2, **kwargs):
+    def __init__(
+            self, *args, download_delay: Union[float, int] = 0.2, **kwargs
+            ):
         """
-        Reduce default download delay, because the harvester does one
-        request per dataset
+        Initializes the KnoemaDCATHarvester instance
+
+        Uses the same arguments at the base 'Harvester' class. Note that the
+        Download delay was decreased, since each dataset is one request for
+        this harvester
         """
         super().__init__(*args, download_delay=download_delay, **kwargs)
 
-    async def request_data(self):
+    async def request_data(self) -> Iterator[list[dict]]:
         """
         Async generator iterating through the API responses
         """
@@ -1463,14 +1513,14 @@ class KnoemaDCATHarvester(Harvester):
         async def get_dataset_links(endpoint):
             """Get a list of links to dataset metadata"""
             rdata = await self.get_xml(endpoint)
-            cleaned = _aux.remove_xml_namespaces(rdata)
+            cleaned = _common.remove_xml_namespaces(rdata)
             return cleaned['RDF']['Catalog']['Dataset']
 
         @self.retry_on_fail(retry_on=(KeyError))
         async def get_dataset_metadata(endpoint):
             """Get the metadata from a specific dataset URL"""
             rdata = await self.get_xml(endpoint)
-            cleaned = _aux.remove_xml_namespaces(rdata)
+            cleaned = _common.remove_xml_namespaces(rdata)
             return cleaned['RDF']['Dataset']
 
         endpoint_url = self.api_url.strip('/') + '/1.0/dcat/'
@@ -1485,15 +1535,17 @@ class KnoemaDCATHarvester(Harvester):
 
 
 class OpenDataSoftHarvester(Harvester):
-    """
-    An Async harvester for OpenDataSoft API (v1). Init parameters are the same
-    as the base harvester. ('rows' is 1000 by default)
-    """
+    """An Async harvester for OpenDataSoft API (v1)."""
 
-    def __init__(self, *args, rows=1000, **kwargs):
+    def __init__(self, *args, rows: int = 1000, **kwargs):
+        """
+        Initializes an OpenDataSoftHarvester instance
+
+        Arguments are the same as with the base 'Harvester' class
+        """
         super().__init__(*args, rows=rows, **kwargs)
 
-    async def request_data(self):
+    async def request_data(self) -> Iterator[list[dict]]:
         """
         Async generator iterating through the API responses
         """
@@ -1519,16 +1571,17 @@ class OpenDataSoftHarvester(Harvester):
 
 
 class BlacklightHarvester(Harvester):
-    """
-    An Async harvester for Blacklight Instances.
-    Init parameters are the same as the base harvester.
-    ('rows' is 100 by default)
-    """
+    """An Async harvester for Blacklight Instances."""
 
-    def __init__(self, *args, rows=100, **kwargs):
+    def __init__(self, *args, rows: int = 100, **kwargs):
+        """
+        Initializes a BlacklightHarvester instance
+
+        Arguments are the same as for the base 'Harvester' class
+        """
         super().__init__(*args, rows=rows, **kwargs)
 
-    async def request_data(self):
+    async def request_data(self) -> Iterator[list[dict]]:
         """
         Async generator iterating through the API responses
         """
@@ -1569,15 +1622,19 @@ class BlacklightHarvester(Harvester):
 
 
 class DataGovINHarvester(Harvester):
-    """
-    An Async harvester for data.gov.in. The default values for the 'rows' and
-    'max_size' parameters of the base Harvester are changed.
-    """
+    """An Async harvester for data.gov.in."""
 
-    def __init__(self, *args, rows=1000, max_size=50000, **kwargs):
+    def __init__(
+            self, *args, rows: int = 1000, max_size: int = 50000, **kwargs
+            ):
+        """
+        Initilizes the DataGovINHarvester instance
+
+        Arguments are the same as for the base 'Harvester' class
+        """
         super().__init__(*args, rows=rows, max_size=max_size, **kwargs)
 
-    async def request_data(self):
+    async def request_data(self) -> Iterator[list[dict]]:
         """
         Async generator iterating through the API responses
         """
@@ -1601,16 +1658,17 @@ class DataGovINHarvester(Harvester):
 
 
 class ScienceBaseHarvester(Harvester):
-    """
-    An Async harvester for ScienceBase.gov. The init parameters of the base
-    harvester are extended by:
-        rows=500 --- int: The number of rows to return for each API request
-    """
+    """An Async harvester for ScienceBase.gov."""
 
-    def __init__(self, *args, rows=500, **kwargs):
+    def __init__(self, *args, rows: int = 500, **kwargs):
+        """
+        Initializes the ScienceBaseHarvester instance
+
+        Arguments are the same as with the base 'Harvester' class
+        """
         super().__init__(*args, rows=rows, **kwargs)
 
-    async def request_data(self):
+    async def request_data(self) -> Iterator[list[dict]]:
         """
         Async generator iterating through the API responses
         """
@@ -1635,16 +1693,17 @@ class ScienceBaseHarvester(Harvester):
 
 
 class GeoPlatformHarvester(Harvester):
-    """
-    An Async harvester for ScienceBase.gov. The init parameters of the base
-    harvester are extended by:
-        rows=1000 --- int: The number of rows to return for each API request
-    """
+    """An Async harvester for ScienceBase.gov."""
 
     def __init__(self, *args, rows=1000, **kwargs):
+        """
+        Initializes the GeoPlatformHarvester instance
+
+        Arguments are the same as with the base 'Harvester' class
+        """
         super().__init__(*args, rows=rows, **kwargs)
 
-    async def request_data(self):
+    async def request_data(self) -> Iterator[list[dict]]:
         """
         Async generator iterating through the API responses
         """
@@ -1669,27 +1728,33 @@ class GeoPlatformHarvester(Harvester):
 
 
 class ElasticSearchScrollHarvester(Harvester):
-    """
-    Async harvester for ElasticSearch Scroll endpoints. Default Harvester
-    arguments are extended by the following:
-        scroll_url=None --- str: Location of the scroll endpoint (Pass the
-        _search endpoint to the api_url). Mandatory argument
+    """Async harvester for ElasticSearch Scroll endpoints."""
 
-        rows=1000 --- int: The number of rows to download per request
+    def __init__(
+            self, *args, rows: int = 1000, query: dict = None,
+            scroll_url: str = None, scroll_using_get: bool = False,
+            scroll: str = '15s', **kwargs
+            ):
+        """
+        Initializes the ElasticSearchScrollHarvester instance
 
-        query=None --- dict: In case match_all should not be used, specify a
-        query. query.size is overriden by rows (Not yet implemented)
+        Arguments of the base 'Harvester' class are extended by:
 
-        scroll_using_get=False --- bool: Scroll by sending a get request with
-        payload, in case post is not accepted by the server (Only True is
-        implemented now)
-
-        scroll='15s' --- str: The 'scroll' parameter passed to ES to indicate
-        for how long the search context should be left active
-    """
-
-    def __init__(self, *args, rows=1000, query=None, scroll_url=None,
-                 scroll_using_get=False, scroll='15s', **kwargs):
+        Args:
+            scroll_url:
+                Location of the scroll endpoint (Pass the _search endpoint to
+                the api_url)
+            query:
+                Optional; In case match_all should not be used, specify a
+                query. query.size is overriden by rows (Not yet implemented)
+            scroll_using_get:
+                Optional; Scroll by sending a get request with payload, in case
+                post is not accepted by the server (Only True is implemented
+                now)
+            scroll:
+                Optional; The 'scroll' parameter passed to ES to indicate for
+                how long the search context should be left active
+        """
         if scroll_url is None:
             raise TypeError('scroll_endpoint is a required argument')
         elif query is not None or not scroll_using_get:
@@ -1700,7 +1765,7 @@ class ElasticSearchScrollHarvester(Harvester):
         self.scroll = scroll
         super().__init__(*args, rows=rows, **kwargs)
 
-    async def request_data(self):
+    async def request_data(self) -> Iterator[list[dict]]:
         """
         Async generator iterating through the API responses
         """
@@ -1729,25 +1794,32 @@ class ElasticSearchScrollHarvester(Harvester):
 
 class ElasticSearchHarvester(Harvester):
     """
-    Async harvester for ElasticSearch that only uses the _search endpoint. It
-    uses POST requests with json-payloads.
-    Extends the default harvester with:
-        rows=1000 --- int: The number of rows to download per request
+    Async harvester for ElasticSearch
 
-        search_after_field --- str: If given, the 'search_after' paging is
-        enabled, which allows to page beyond 10.000 entries. Please note that
-        this field MUST have 'doc_values' enabled to effectively use it in
-        sorting, and it MUST have unique values.
-
-        query=None --- dict: In case match_all should not be used, specify a
-        query. query.size is overriden by rows, and query.sort is overriden in
-        case 'search_after_field' is enabled
+    This only uses the _search endpoint. It uses POST requests with
+    json-payloads.
     """
 
     def __init__(
-            self, *args, rows=1000, search_after_field=None, query=None,
-            **kwargs
+            self, *args, rows: int = 1000, search_after_field: str = None,
+            query=None, **kwargs
             ):
+        """
+        Initializes the ElasticSearchHarvester instance
+
+        Arguments of the base 'Harvester' class are extended by:
+
+        Args:
+            search_after_field:
+                Optional; If given, the 'search_after' paging is enabled, which
+                allows to page beyond 10.000 entries. Please note that this
+                field MUST have 'doc_values' enabled to effectively use it in
+                sorting, and it MUST have unique values.
+            query:
+                Optional; In case match_all should not be used, specify a
+                query. query.size is overriden by rows, and query.sort is
+                overridden in case 'search_after_field' is enabled
+        """
         if query is None:
             query = {'query': {'match_all': {}}}
         self.query = copy.deepcopy(query)
@@ -1758,20 +1830,21 @@ class ElasticSearchHarvester(Harvester):
         self.search_after_field = search_after_field
         super().__init__(*args, rows=rows, **kwargs)
 
-    def get_sa_value(self, hit, sa_field):
+    def get_sa_value(self, hit: dict, sa_field: str) -> Any:
         """
         Get the Search After value
 
-        Arguments:
-            hit --- dict_: The last hit returned by ElasticSearch
-
-            sa_field --- str: The full search_after field that's used. If the
-            'fields' option is used to create sub-fields, still provide the
-            full field here. The function will resolve to the value of a parent
-            level, if the child is not available.
+        Args:
+            hit:
+                The last hit returned by ElasticSearch
+            sa_field:
+                The full search_after field that's used. If the 'fields' option
+                is used to create sub-fields, still provide the full field
+                here. The function will resolve to the value of a parent level,
+                if the child is not available.
 
         Returns:
-            any: The value of the search after field in the hit
+            The value of the search after field in the hit
         """
         field_hierarchy = sa_field.split('.')
         payload = hit['_source']
@@ -1792,7 +1865,7 @@ class ElasticSearchHarvester(Harvester):
                 ' hit:\n{}'.format(hit)
             )
 
-    async def request_data(self):
+    async def request_data(self) -> Iterator[list[dict]]:
         """
         Async generator iterating through the API responses
         """
@@ -1836,16 +1909,17 @@ class ElasticSearchHarvester(Harvester):
 
 
 class InvenioAPIHarvester(Harvester):
-    """
-    Async harvester for Invenio API endpoints. Default Harvester
-    arguments are extended by the following:
-        rows=1000 --- int: The number of rows to download per request
-    """
+    """Async harvester for Invenio API endpoints."""
 
-    def __init__(self, *args, rows=1000, **kwargs):
+    def __init__(self, *args, rows: int = 1000, **kwargs):
+        """
+        Initializes the InvenioAPIHarvester instance
+
+        Uses the same arguments as the base 'Harvester class
+        """
         super().__init__(*args, rows=rows, **kwargs)
 
-    async def request_data(self):
+    async def request_data(self) -> Iterator[list[dict]]:
         """
         Async generator iterating through the API responses
         """
@@ -1892,16 +1966,17 @@ class InvenioAPIHarvester(Harvester):
 
 
 class MagdaAPIHarvester(Harvester):
-    """
-    Async harvester for Magda API endpoints. Default Harvester
-    arguments are extended by the following:
-        rows=1000 --- int: The number of rows to download per request
-    """
+    """Async harvester for Magda API endpoints."""
 
-    def __init__(self, *args, rows=1000, **kwargs):
+    def __init__(self, *args, rows: int = 1000, **kwargs):
+        """
+        Initializes the MagdaAPIHarvester instance
+
+        Uses the arguments from the harvesters.Harvester class
+        """
         super().__init__(*args, rows=rows, **kwargs)
 
-    async def request_data(self):
+    async def request_data(self) -> Iterator[list[dict]]:
         """
         Async generator iterating through the API responses
         """
@@ -1935,17 +2010,17 @@ class MagdaAPIHarvester(Harvester):
 
 
 class GeonetworkAPIHarvester(Harvester):
-    """
-    Async harvester for Geonetwork Q search API. Please try to use CSW for
-    geonetwork, if it's working. Extends the base Harvester with the following
-    parameters:
-        rows=100 --- int: The number of rows to download per request
-    """
+    """Async harvester for Geonetwork Q search API."""
 
-    def __init__(self, *args, rows=100, **kwargs):
+    def __init__(self, *args, rows: int = 100, **kwargs):
+        """
+        Initializes the GeonetworkAPIHarvester instance
+
+        Use the same arguments as with the harvesters.Harvester class
+        """
         super().__init__(*args, rows=rows, **kwargs)
 
-    async def request_data(self):
+    async def request_data(self) -> Iterator[list[dict]]:
         """
         Async generator iterating through the API responses
         """
@@ -1977,16 +2052,17 @@ class GeonetworkAPIHarvester(Harvester):
 
 
 class EUDPHarvester(Harvester):
-    """
-    Async harvester for the European Data Portal. Extends the base Harvester
-    with the following parameters:
-        rows=1000 --- int: The number of rows to download per request
-    """
+    """Async harvester for the European Data Portal."""
 
-    def __init__(self, *args, rows=1000, **kwargs):
+    def __init__(self, *args, rows: int = 1000, **kwargs):
+        """
+        Initializes the EUDPHarvester instance
+
+        Uses the same arguments as the harvesters.Harvester class
+        """
         super().__init__(*args, rows=rows, **kwargs)
 
-    async def request_data(self):
+    async def request_data(self) -> Iterator[list[dict]]:
         """
         Async generator iterating through the API responses
         """
@@ -2025,38 +2101,42 @@ class EUDPHarvester(Harvester):
 
 
 class JunarAPIHarvester(Harvester):
-    """
-    Async harvester for the Junar API (v2). Extends the base Harvester
-    with the following parameters:
-        rows=1000 --- int: The number of rows to download per request
-
-        max_size=50000 --- int: Maximum number of entries to retrieve (To
-        prevent infinite loop if paging is not working)
-
-        API_key=None --- str: The API key to use for the requests
-
-        API_key_fetch_url=None --- str: The URL to retrieve an API key for the
-        Junar API (e.g. https://beta.datos.gob.cl/manageDeveloper/create/)
-
-        resources_types --- list: The resource types to query from API,
-        options are datasets, datastreams (these are dataviews),
-        visualizations, dashboards.
-    """
+    """Async harvester for the Junar API (v2)."""
     possible_resource_types = set(
         ['datasets', 'datastreams', 'visualziations', 'dashboards'])
 
     def __init__(
-            self, *args, resource_types, rows=1000, max_size=50000,
-            API_key=None, API_key_fetch_url=None, **kwargs
+            self, *args, resource_types: list[str], rows: int = 1000,
+            max_size: int = 50000, API_key: str = None,
+            API_key_fetch_url: str = None, **kwargs
             ):
+        """
+        Initializes the JunarAPIHarvester instance
+
+        Uses the same arguments as the harvesters.Harvester class, extended by:
+
+        Args:
+            resources_types:
+                The resource types to query from API, options are datasets,
+                datastreams (these are dataviews), visualizations, dashboards.
+            API_key:
+                Optional; The API key to use for the requests
+            API_key_fetch_url:
+                Optional; The URL to retrieve an API key for the Junar API
+                (e.g. https://beta.datos.gob.cl/manageDeveloper/create/)
+        """
         self.API_key = API_key
         self.API_key_fetch_url = API_key_fetch_url
-        if any((t not in self.possible_resource_types) for t in resource_types):
-            raise ValueError('Invalid resource_types!')
-        self.resource_types = resource_types
-        super().__init__(*args, rows=rows, **kwargs)
 
-    async def request_data(self):
+        has_invalid_resource_types = any(
+            (t not in self.possible_resource_types) for t in resource_types
+        )
+        if has_invalid_resource_types:
+            raise TypeError('Invalid data for argument \'resource_types\'')
+        self.resource_types = resource_types
+        super().__init__(*args, rows=rows, max_size=max_size, **kwargs)
+
+    async def request_data(self) -> Iterator[list[dict]]:
         """
         Async generator iterating through the API responses
         """
@@ -2113,16 +2193,20 @@ class JunarAPIHarvester(Harvester):
 
 class UdataHarvester(Harvester):
     """
-    Async harvester for Udata portals. Uses version 1 of their API, to extract
-    data from the datasets endpoint. Extends the base Harvester
-    with the following parameters:
-        rows=500 --- int: The number of rows to download per request
+    Async harvester for Udata portals.
+
+    Uses version 1 of the Udata API
     """
 
-    def __init__(self, *args, rows=500, **kwargs):
+    def __init__(self, *args, rows: int = 500, **kwargs):
+        """
+        Initializes the UdataHarvester instance
+
+        Arguments are the same as for the harvesters.Harvester class
+        """
         super().__init__(*args, rows=rows, **kwargs)
 
-    async def request_data(self):
+    async def request_data(self) -> Iterator[list[dict]]:
         """
         Async generator iterating through the API responses
         """
@@ -2152,24 +2236,23 @@ class UdataHarvester(Harvester):
 
 
 class SingleXMLHarvester(Harvester):
-    """
-    An async harvester to gather data from a single XML payload that's
-    returned by a server.
+    """An async harvester to gather data from a single XML payload"""
 
-    The max_size parameter (integer, maximum size of response in bytes) should
-    be set explicitly, to not run out of memory.
+    def __init__(self, *args, max_size, result_key=None, **kwargs):
+        """
+        Initializes the SingleXMLHarvester instance
 
-    Base harvester arguments are further extended by:
-        max_size --- int: Maximum size of response in bytes, so the system will
-        not run out of memory on big files
+        Uses the same arguments as the harvester.Harvester class, extended by:
 
-        result_key=None --- str/dict: The path where the list of results is
-        found (in the namespace cleaned data) (e.g.
-        {'RDF': {'Catalog': 'dataset'}}, gets it from rdf:RDF > dcat:Catalog >
-        dcat:dataset)
-    """
-
-    def __init__(self, *args, max_size=None, result_key=None, **kwargs):
+        Args:
+            max_size:
+                (Is made a mandatory argument). Set this explicity (in bytes)
+                to prevent running out of memory.
+            result_key:
+                Optional; The path where the list of results is found (in the
+                namespace cleaned data) (e.g. {'RDF': {'Catalog': 'dataset'}},
+                gets it from rdf:RDF > dcat:Catalog > dcat:dataset)
+        """
         if not isinstance(max_size, int):
             raise ValueError(
                 'max_size parameter should be set explicitly (integer)'
@@ -2178,12 +2261,12 @@ class SingleXMLHarvester(Harvester):
         self.result_key = result_key
         super().__init__(*args, max_size=max_size, **kwargs)
 
-    def get_result(self, rdata):
+    def get_result(self, rdata: Any) -> list[dict]:
         """
-        Get the resulting array from the response_data (parsed JSON)
+        Get the resulting array from the response_data (parsed XML)
         """
         if self.result_key is not None:
-            result = _aux.get_data_from_loc(rdata, self.result_key)
+            result = _common.get_data_from_loc(rdata, self.result_key)
             if not isinstance(result, list):
                 raise exceptions.UnexpectedDataError(
                     'No array at "result_key" location'
@@ -2196,14 +2279,14 @@ class SingleXMLHarvester(Harvester):
                 )
             return rdata
 
-    async def request_data(self):
+    async def request_data(self) -> Iterator[list[dict]]:
         """
         Async generator yielding the data from the single request
         """
         @self.retry_on_fail(retry_on=(KeyError))
         async def get_data(endpoint):
             response_data = await self.get_xml(endpoint, get_chuncked=True)
-            cleaned_data = _aux.remove_xml_namespaces(response_data)
+            cleaned_data = _common.remove_xml_namespaces(response_data)
             return self.get_result(cleaned_data)
 
         payload = await get_data(self.api_url)
@@ -2212,20 +2295,29 @@ class SingleXMLHarvester(Harvester):
 
 class XMLLinesHarvester(Harvester):
     """
-    An async harvester to gather data from a single XML payload that's
-    returned by a server. Please not that currently there is no retry behaviour
-    implemented. File should be available and read on first try.
+    Harvester to retrieve XML data line by line
 
-    Base harvester arguments are further extended by:
-        resource_element=None --- str: The Resource element, to detect where a
-        single resource starts and stops from the lines (e.g. dcat:Dataset)
+    Use this for large XML files, that should not be loaded into memory at once
+
+    NOTE: Currently, no retry behaviour is implemented, since this would lead
+    to duplicate data
     """
 
-    def __init__(self, *args, resource_element=None, **kwargs):
+    def __init__(self, *args, resource_element: str, **kwargs):
+        """
+        Initializes the XMLLinesHarvester instance
+
+        The arguments of the base harvesters.Harvester class are extended by:
+
+        Args:
+            resource_element:
+                The Resource element, to detect where a single resource starts
+                and stops from the lines (e.g. dcat:Dataset)
+        """
         self.resource_element = resource_element
         super().__init__(*args, is_single_request=True, **kwargs)
 
-    async def request_data(self):
+    async def request_data(self) -> Iterator[list[dict]]:
         """
         Async generator yielding the data from each resource detected in the
         lines
@@ -2252,8 +2344,8 @@ class XMLLinesHarvester(Harvester):
                     )
                 element_str += line
                 yield [
-                    _aux.remove_xml_namespaces(
-                        _aux.limit_depth(
+                    _common.remove_xml_namespaces(
+                        _common.limit_depth(
                             xmltodict.parse(
                                 element_str
                             ),
@@ -2270,18 +2362,25 @@ class XMLLinesHarvester(Harvester):
 class JSONIndexHarvester(Harvester):
     """
     Async harvester that harvests individual datasets that are described in a
-    main 'index' json file, which contains an array with the urls. Arguments of
-    the base Harvester are extended with:
-        url_location=None --- str/dict: If the index file is a list of
-        dictionaries, this is the location in the dictionary where url for
-        the resource can be found (e.g. 'url', or {'resource': 'url'})
+    main 'index' json file, which contains an array with the urls
     """
 
-    def __init__(self, *args, url_location, **kwargs):
+    def __init__(self, *args, url_location: Union[str, dict], **kwargs):
+        """
+        Initializes the JSONIndexHarvester instance
+
+        Arguments of the base harvesters.Harvester are extended by:
+
+        Args:
+            url_location:
+                If the index file is a list of dictionaries, this is the
+                location in the dictionary where url for the resource can be
+                found (e.g. 'url', or {'resource': 'url'})
+        """
         self.url_location = url_location
         super().__init__(*args, **kwargs)
 
-    async def request_data(self):
+    async def request_data(self) -> Iterator[list[dict]]:
         """
         Async generator iterating through the API responses
         """
@@ -2296,7 +2395,7 @@ class JSONIndexHarvester(Harvester):
                 if isinstance(item, str):
                     urls.append(item)
                 elif isinstance(item, dict):
-                    url = _aux.get_data_from_loc(item, self.url_location)
+                    url = _common.get_data_from_loc(item, self.url_location)
                     if not isinstance(url, str):
                         raise TypeError('URL should be a string')
                     urls.append(

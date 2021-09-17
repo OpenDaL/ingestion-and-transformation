@@ -3,7 +3,7 @@ from . import _loadcfg
 
 __all__ = [
     'harvesters', 'structurers', 'translators', 'analyze', 'settings',
-    'exceptions', 'post_processors'
+    'exceptions', 'resource', 'post_processors', 'dataio'
 ]
 
 sources = {

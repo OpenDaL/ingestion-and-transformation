@@ -1,9 +1,10 @@
 # -*- coding: utf-8 -*-
 """
-POST PROCESSING MODULE
+Module with Post-Processors
 
-This module includes functions related to translating the metadata from
-external data sources to the correct metadata format.
+Each Post-Processor handles a different part of the post processing. From the
+client code, use the MetadataPostProcessor class, that combines all
+PostProcessors
 """
 from statistics import mean
 import re
@@ -15,6 +16,9 @@ from metadata_ingestion.resource import ResourceMetadata
 
 
 class PostProcessor(ABC):
+    """
+    Base class for all PostProcessors
+    """
 
     @abstractmethod
     def post_process(self, metadata: ResourceMetadata):
@@ -26,6 +30,8 @@ class PostProcessor(ABC):
 
 class Filter(PostProcessor):
     """
+    Filters PostProcessor
+
     Filter all metadata that:
         * Does not have a title
         * Has no description, subject or location
@@ -134,7 +140,9 @@ class Filter(PostProcessor):
 
 class Optimizer(PostProcessor):
     """
-    Optimize translated data, so the relations between fields are correct
+    Optimizer PostProcessor
+
+    Optimizes translated data, so the relations between fields are correct
     """
     text_formats = set(['PDF', 'TXT', 'DOC', 'DOCX', 'RTF'])
 
@@ -195,8 +203,8 @@ class Optimizer(PostProcessor):
 
     def _optimize_document_types(self, translated_metadata: dict):
         """
-        If an entry only has text based formats, and the title contains specific
-        phrases, it can be classified as a Document or Document:Report
+        If an entry only has text based formats, and the title contains
+        specific phrases, it can be classified as a Document or Document:Report
         """
         formats = translated_metadata.get('format')
         title = translated_metadata.get('title')
@@ -224,7 +232,9 @@ class Optimizer(PostProcessor):
 
 class Scorer(PostProcessor):
     """
-    Add scores to metadata.meta based on metadata quality (used in ES sorting)
+    Scorer PostProcessor
+
+    Adds scores to metadata.meta based on metadata quality (used in ES sorting)
     """
     depth_score = {
         0: 0.6,
@@ -262,7 +272,7 @@ class Scorer(PostProcessor):
         max_y = val[1]
         return (((x - min_x) / (max_x - min_x)) * (max_y - min_y)) + min_y
 
-    def _get_description_score(self, translated_metadata: dict):
+    def _get_description_score(self, translated_metadata: dict) -> float:
         description = translated_metadata.get('description')
         if description is not None:
             # Using a skewed distribution to score length
@@ -270,7 +280,7 @@ class Scorer(PostProcessor):
         else:
             return 0
 
-    def _get_title_score(self, translated_metadata: dict):
+    def _get_title_score(self, translated_metadata: dict) -> float:
         title = translated_metadata['title']
         return self._interp_curve(len(title), self.title_sc)
 
@@ -289,7 +299,11 @@ class Scorer(PostProcessor):
             min_depth = min(depths)
             return min_depth + 1
 
-    def _get_subject_score(self, translated_metadata: dict):
+    def _get_subject_score(self, translated_metadata: dict) -> float:
+        """
+        Compound score based on the number of subjects, and how detailed they
+        ares
+        """
         subject = translated_metadata.get('subject')
         if subject is not None:
             low_level_subjects = subject['low_level']
@@ -309,14 +323,19 @@ class Scorer(PostProcessor):
         else:
             return 0
 
-    def _get_location_score(self, translated_metadata: dict):
+    def _get_location_score(self, translated_metadata: dict) -> int:
+        """
+        Binary score based on existence of the location field
+        """
         if len(translated_metadata.get('location', [])) > 0:
             return 1
         else:
             return 0
 
-    def _get_dates_score(self, translated_metadata: dict):
-        """One date, 0.5, two dates 0.75 and three 1.0"""
+    def _get_dates_score(self, translated_metadata: dict) -> float:
+        """
+        One date, 0.5, two dates 0.75 and three 1.0
+        """
         count = 0
         for date_key in ['modified', 'created', 'issued']:
             if translated_metadata.get(date_key) is not None:
@@ -327,15 +346,19 @@ class Scorer(PostProcessor):
         else:
             return 0
 
-    def _get_timeperiod_score(self, translated_metadata: dict):
-        """Only based on existence"""
+    def _get_timeperiod_score(self, translated_metadata: dict) -> int:
+        """
+        Binary score based on timeperiod field
+        """
         if translated_metadata.get('timePeriod') is not None:
             return 1
         else:
             return 0
 
-    def _get_license_score(self, translated_metadata: dict):
-        """Scores license name only, otherwise it's half-put-together"""
+    def _get_license_score(self, translated_metadata: dict) -> int:
+        """
+        Scores license name only, since otherwise license data is incomplete
+        """
         if translated_metadata.get('license', {}).get('name') is not None:
             return 1
         else:
@@ -367,9 +390,19 @@ class Scorer(PostProcessor):
 
 class MetadataPostProcessor(PostProcessor):
     """
-    Aggregates all Post-processors
+    MetadataPostProcessor
+
+    Combined PostProcessor that runs the Filter, Optimizer and Scorer or the
+    data
     """
-    def __init__(self, enable_filters=True) -> None:
+    def __init__(self, enable_filters: bool = True) -> None:
+        """
+        Initializes the MetadataPostProcessor
+
+        Args:
+            enable_filters:
+                Optional; If False, data is not being filtered
+        """
         self._filter = Filter()
         self._optimizer = Optimizer()
         self._scorer = Scorer()

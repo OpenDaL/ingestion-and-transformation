@@ -1,6 +1,9 @@
 # -*- coding: utf-8
 """
-Contains the resource classes
+Module with the Resource Metadata class
+
+This contains the ResourceMetadata class, which is used throughout the
+processing pipeline
 """
 import copy
 import hashlib
@@ -8,16 +11,32 @@ import hashlib
 
 class ResourceMetadata:
     """
-    Package for storing the harvested, structured and translated metadata
-    throughout processing
+    ResourceMetadata class
 
-    Arguments:
-        harvested --- dict: The harvested data
+    Used to store the harvested, structured and translated metadata, as well
+    as any other metadata, such as the id of the source portal
 
-        source_id --- str: The source_id for the harvested data
+    Attributes:
+        harvested:
+            The harvested data dictionary
+        structured:
+            The dictionary containing the structured data
+        translated:
+            The dictionary containing the translated data
+        meta:
+            Dictionary containing additional metadata, like the source.id
+        is_filtered:
+            Boolean indicating if the metadata should be filtered
     """
 
-    def __init__(self, harvested):
+    def __init__(self, harvested: dict):
+        """
+        Initializes the ResourceMetadata instance
+
+        Args:
+            harvested:
+                The harvested data
+        """
         self.harvested = copy.deepcopy(harvested)
         self.structured = {}
         self.translated = {}
@@ -26,18 +45,12 @@ class ResourceMetadata:
             'source': {}
         }
 
-    def add_structured_legacy_fields(self):
+    @property
+    def _global_id(self) -> str:
         """
-        Method to recreate the legacy format, to use in old structuring and
-        translation functions
+        Returns the global (system-wide) id, by combining the source id and the
+        localId (id in the source portal)
         """
-        self.structured['_dplatform_externalReference'] = {
-            'type': 'synchronizedPortalPage',
-            'URL': self.meta['url']
-            }
-        self.structured['_dplatform_uid'] = self.meta['localId']
-
-    def get_global_id(self):
         source_id = self.meta['source']['id']
         local_id = self.meta['localId']
         encoded_local_id = local_id.encode('utf8')
@@ -47,9 +60,14 @@ class ResourceMetadata:
         else:
             return f'{source_id}-{local_id}'
 
-    def get_full_data(self):
+    def get_full_data(self) -> dict:
+        """
+        Returns the full data to be saved to the database
+
+        Call this function after translation
+        """
         header_metadata = {
-            'id': self.get_global_id(),
+            'id': self._global_id,
             'externalReference': {
                 'type': 'synchronizedPortalPage',
                 'URL': self.meta['url']

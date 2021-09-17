@@ -9,14 +9,14 @@ import html
 import re
 import json
 import ast
-from typing import Union
+from typing import Union, Any
 
 from metadata_ingestion.settings import REP_TEXTKEY
 
 at_pattern = re.compile('@')
 
 
-def get_first_key_data_with_len(dict_, len_):
+def get_first_key_data_with_len(dict_, len_: int) -> Any:
     """
     Gets the data of the first key from a dict with two letter language keys
     """
@@ -29,26 +29,30 @@ def get_first_key_data_with_len(dict_, len_):
 
 def get_data_from_loc(
         data: Union[dict, list], loc: Union[str, dict],
-        pop: bool = False, default=None, accept_subvalue: bool = False
-        ):
+        pop: bool = False, default: Any = None, accept_subvalue: bool = False
+        ) -> Any:
     """
-    Return the data for a specific location inside a dictionary
+    Gets the data from a specific location inside a dictionary
 
-    Arguments:
-        data -- The input dict/list
+    Args:
+        data:
+            The input dict/list
+        loc:
+            The location/nested location of the resource description list
+            (e.g. {'RDF': {'Catalog': 'dataset'}}, gets it from
+            data['RDF']['Catalog']['dataset'])
+        pop:
+            Whether to use pop or get on the final level
+        default:
+            Default value to return, if the result was not found
+        accept_subvalue:
+            If the complete chain defined under 'loc' is not present in the
+            data, this decides if a sub-value should be returned. e.g. if
+            loc={'parentkey': 'childkey'}, but data={'parentkey': 4}, the
+            value for parentkey would be returned
 
-        loc -- The location/nested location of the resource
-        description list (e.g. {'RDF': {'Catalog': 'dataset'}}, gets it
-        from data['RDF']['Catalog']['dataset'])
-
-        pop -- Whether to use pop or get on the final level
-
-        default -- Default value to return, if the result was not found
-
-        accept_subvalue -- If the complete chain defined under 'loc' is not
-        present in the data, this decides if a sub-value should be returned.
-        e.g. if loc={'parentkey': 'childkey'}, but data={'parentkey': 4}, the
-        value for parentkey would be returned
+    Returns:
+        The data at the location, if found, otherwise the default value
     """
     if isinstance(loc, str):
         if isinstance(data, dict):
@@ -97,17 +101,19 @@ def get_data_from_loc(
             return default
 
 
-def rename_if_duplicate(keyname, data):
+def rename_if_duplicate(keyname: str, data: dict) -> str:
     """
-    Rename a key if it is a duplicate
+    Renames a key if it is a duplicate
 
-    Arguments:
-        keyname --- str: The original name of the key
-
-        data --- dict: The dict to look for duplicates
+    Args:
+        keyname:
+            The original name of the key
+        data:
+            The dict to look for duplicates
 
     Returns:
-        keyname --- The keyname to be used, original in case of no duplicates
+        The keyname to be used. This is the same as the input keyname in case
+        no duplicates are found
     """
     org_keyname = keyname
     counter = 1
@@ -119,96 +125,95 @@ def rename_if_duplicate(keyname, data):
     return keyname
 
 
-def string_conversion(in_str):
+def string_conversion(str_) -> str:
     """
-    Checks if a string contains stringified lists or dicts, and converts these.
-
-    Input:
-        in_str --- The input string
+    Checks if a string represents a list or dict (e.g. "[1, 6]") and convert
+    when possible
 
     Returns:
-        result --- If it cannot be converted, a string is returned, otherwise
-        a dict or a list is returned
+        If it can be converted, returns the parsed string, otherwise the
+        original is returned
     """
-    result = in_str
+    result = str_
 
-    if len(in_str) > 1 and in_str[0] == '"' and in_str[-1] == '"':
+    if len(str_) > 1 and str_[0] == '"' and str_[-1] == '"':
         try:
-            result = json.loads(in_str)
+            result = json.loads(str_)
         except json.JSONDecodeError:
             pass
 
-    if len(in_str) > 1 and\
-       ((in_str[0] == '[' and in_str[-1] == ']')
-       or (in_str[0] == '{' and in_str[-1] == '}')):
+    if len(str_) > 1 and\
+       ((str_[0] == '[' and str_[-1] == ']')
+       or (str_[0] == '{' and str_[-1] == '}')):
         try:
-            result = ast.literal_eval(in_str)
+            result = ast.literal_eval(str_)
             if isinstance(result, set):  # Set is not JSON serializable
                 result = list(result)
         except (SyntaxError, ValueError):
             try:
-                result = json.loads(in_str)
+                result = json.loads(str_)
             except json.JSONDecodeError:
                 pass
 
     return result
 
 
-def remove_empty_keys(in_dict):
+def remove_empty_keys(dict_) -> dict:
     """
     Removes keys with emtpy values from a dict
 
-    Input:
-        in_dict --- The input dictionary
-
     Returns:
-        dictionary --- The original dictionary with the empty values filtered
+        A new dictionary, where all keys with empty values are omitted
     """
-    out_dict = {k: v for k, v in in_dict.items() if
-                v != ''
-                and v != '[]'
-                and v != '{}'
-                and v != []
-                and v != {}
-                and v is not None}  # 0 and False should not be excluded
+    return {
+        k: v for k, v in dict_.items() if
+        v != ''
+        and v != '[]'
+        and v != '{}'
+        and v != []
+        and v != {}
+        and v is not None
+    }  # 0 and False should not be excluded
 
-    return out_dict
 
-
-def multiple_rename(string_data: str, renaming: list[tuple[re.Pattern, str]]):
+def multiple_rename(str_: str, renaming: list[tuple[re.Pattern, str]]) -> str:
     """
     Renames a string based on multiple regexes and replace strings
 
-    Arguments:
-        string_data --- str: String to be renamed
+    Args:
+        str_ :
+            String to be renamed
 
-        renaming --- list[tuples]: Each tupple giving a regex and what to
-        replace it with
+        renaming:
+            List of 'length 2' tuples, which contain (1) a regex pattern,
+            and (2) a string to which to replace the pattern with
 
     Returns:
-        str --- The renamed string
+        The renamed string
     """
     for pattern, replace in renaming:
-        string_data = pattern.sub(replace, string_data)
+        str_ = pattern.sub(replace, str_)
 
-    return string_data
+    return str_
 
 
 def rename_keys(
         data: Union[dict, list], renaming: list[tuple[re.Pattern, str]]
-        ):
+        ) -> Union[dict, list]:
     """
-    renames all keys and embedded keys in a dict. Warning: Does not check for
-    duplicates. Duplicate keys and data will be rewritten!
+    Renames all keys and embedded keys in a dict.
 
-    Arguments:
-        data --- The key value pairs
+    Warning: Does not check for duplicates. Duplicate keys and data will be
+    rewritten!
 
-        renaming --- Each tupple giving a regex pattern and what to
-        replace it with
+    Args:
+        data:
+            The key value pairs
+        renaming:
+            Each tupple giving a regex pattern and what to replace it with
 
     Returns:
-        dict --- The data with renamed keys
+        Data with the renamed keys
     """
     new_data = None
     if isinstance(data, dict):
@@ -234,13 +239,14 @@ def remove_keys(data: dict, regex: Union[str, re.Pattern]) -> dict:
     Removes keys that match specific regex patterns from a dict, even
     if keys are nested or in nested lists. Case insensitive
 
-    Arguments:
-        data -- The data to be cleaned
-
-        regex -- If a key matches this regex, it is removed
+    Args:
+        data:
+            The data to be cleaned
+        regex:
+            If a key matches this regex, it is removed
 
     Returns:
-        dict: The cleaned data
+        The cleaned data
     """
     if isinstance(regex, str):
         regex = re.compile(regex, re.IGNORECASE)
@@ -270,16 +276,16 @@ def remove_keys(data: dict, regex: Union[str, re.Pattern]) -> dict:
 namespace_prefix_pattern = re.compile(r'^(@)?(.*?:)')
 
 
-def remove_xml_namespaces(data):
+def remove_xml_namespaces(data: Union[dict, list]) -> Union[dict, list]:
     """
-    Delete the namespace prefixes from the keys in xml data (e.g. 'rdf:RDF'
-    becomes 'RDF'), and remove 'xmlns:' and 'xsi:schemaLocation' attributes.
+    Deletes the namespace prefixes from the keys in xml data (e.g. 'rdf:RDF'
+    becomes 'RDF'), and removes 'xmlns:' and 'xsi:schemaLocation' attributes.
 
-    Arguments:
-        data --- dict: The parsed XML data
+    Args:
+        data: The parsed XML data
 
     Returns:
-        dict --- The initial data, without namespace prefixes
+        The initial data, without namespace prefixes
     """
     # Remove 'xmlns' attributes:
     without_xmlns = remove_keys(data, r'(^@xmlns)|(^@xsi:schemaLocation)')
@@ -291,15 +297,15 @@ def remove_xml_namespaces(data):
     return data_without_namespace_info
 
 
-def remove_nonetypes(data):
+def remove_nonetypes(data: Union[dict, list]) -> Union[dict, list]:
     """
     Removes 'None' values (nested) in data (e.g. dictionaries)
 
-    Arguments:
-        data --- dict/list: The data from which to remove the nonetype values
+    Args:
+        data: The data from which to remove the nonetype values
 
     Returns:
-        Same datatype as input --- The cleaned data
+        The cleaned data
     """
     if isinstance(data, dict):
         new_data = {}
@@ -323,23 +329,26 @@ def remove_nonetypes(data):
     return new_data
 
 
-def clean_xml(key, value, prefer_upper=False):
+def clean_xml(
+        key: str, value: Any, prefer_upper: bool = False
+        ) -> tuple[str, Any]:
     """
     Clean and filter parsed xml data
 
-    Arguments:
-        key --- str: The key name of the metadata attribute
-
-        value --- any: The data under the metadata attribute. All NoneTypes in
-        the values (both top level and nested) should be removed using
-        'remove_nonetypes'.
-
-        prefer_upper=False --- bool: If a metadata attribute contains a dict of
-        lenght 1, this determines whether the lower name will be retained, or
-        the upper name, when the level in between is removed.
+    Args:
+        key:
+            The key name of the metadata attribute
+        value:
+            The data under the metadata attribute. All NoneTypes in
+            the values (both top level and nested) should be removed using
+            'remove_nonetypes'.
+        prefer_upper:
+            If a metadata attribute contains a dict of lenght 1, this
+            determines whether the lower name will be retained, or
+            the upper name, when the level in between is removed.
 
     Returns:
-        str, any --- The cleaned key and value
+        The cleaned key and value
     """
     new_key = None
     new_value = None
@@ -507,18 +516,19 @@ def clean_xml(key, value, prefer_upper=False):
     return new_key, new_value
 
 
-def limit_depth(dict_, limit):
+def limit_depth(dict_, limit: int) -> dict:
     """
-    Limit the depth a parsed XML structure, since some APIs tend to return crap
-    data (function changes input data)
+    Limits the depth a parsed XML structure, since some APIs tend to return
+    crap data (Edits the input dict_ in-place)
 
-    Arguments:
-        dict_ --- dict: The data to limit the depth of
-
-        limit --- int: The number of levels allowed
+    Args:
+        dict_:
+            The data to limit the depth of
+        limit:
+            The number of levels allowed
 
     Returns:
-        dict --- The original data, depth limited
+        The original data, depth limited
     """
     level = 0
     evaluate = [dict_]
@@ -544,19 +554,20 @@ def limit_depth(dict_, limit):
 text_pattern = re.compile('#text')
 
 
-def clean_xml_metadata(data, prefer_upper=False):
+def clean_xml_metadata(data: dict, prefer_upper: bool = False) -> dict:
     """
-    Clean an xml resource description parsed using xmltodict
+    Cleans an xml resource description parsed using xmltodict
 
     Arguments:
-        data --- dict: The parsed XML data, that is to be cleaned_data
-
-        prefer_upper --- bool: If an intermediate level in the dict is removed,
-        because it only contained a single key, should the entry get the name
-        of the lower (removed) key (default) or get the name of the upper key.
+        data:
+            The parsed XML data, that is to be cleaned
+        prefer_upper:
+            If an intermediate level in the dict is removed, because it only
+            contained a single key, should the entry get the name of the lower
+            (removed) key (default) or get the name of the upper key.
 
     Returns:
-        dict --- The cleaned parsed XML data
+        The cleaned parsed XML data
     """
     # First the #text key and remove attribute declarations:
     renaming = [(text_pattern, REP_TEXTKEY), (at_pattern, '')]
@@ -572,18 +583,3 @@ def clean_xml_metadata(data, prefer_upper=False):
         cleaned_data[new_key] = new_value
 
     return cleaned_data
-
-
-def filter_truncate_string(str_, min_length, max_length):
-    """
-    Truncate a string (three dots), when exceeding max_length, returns
-    None is smaller than min_length
-    """
-    org_len = len(str_)
-    new_str = None
-    if org_len > max_length:
-        new_str = str_[:max_length-1] + '…'
-    elif org_len >= min_length:
-        new_str = str_
-
-    return new_str

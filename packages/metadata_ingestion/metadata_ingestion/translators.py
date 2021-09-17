@@ -10,7 +10,7 @@ import datetime
 import html
 import copy
 from abc import ABC, abstractmethod
-from typing import Callable, Union
+from typing import Callable, Union, Any
 
 import html2text
 from dateparser.date import DateDataParser
@@ -19,7 +19,7 @@ from shapely import wkt, geometry
 from shapely.errors import WKTReadingError
 import fastjsonschema
 
-from metadata_ingestion import _aux, _loadcfg
+from metadata_ingestion import _common, _loadcfg
 from metadata_ingestion import settings as st
 from metadata_ingestion.resource import ResourceMetadata
 
@@ -52,7 +52,14 @@ class FieldTranslator(ABC):
             'A field_name was not defined for this translator'
         )
 
-    def __init__(self, fields, **kwargs):
+    def __init__(self, fields: list[str], **kwargs):
+        """
+        Initialize the FieldTranslator base class instance
+
+        Args:
+            fields:
+                A list of source data field names this translator should use
+        """
         if self.has_circular_dependencies():
             raise TypeError(
                 'Dependencies of {} are circular'.format(
@@ -65,14 +72,20 @@ class FieldTranslator(ABC):
         self.properties = kwargs
 
     @classmethod
-    def has_circular_dependencies(cls, previous_in_chain: set[str] = None):
+    def has_circular_dependencies(
+            cls, previous_in_chain: set[str] = None
+            ) -> bool:
         """
-        Check if the current class has circular dependencies
+        Checks if the current class has circular dependencies
 
-        Arguments:
-            previous_in_chain -- If called from another class, pass the upchain
-            dependencies, so it can be validated these are not in the child
-            dependencies
+        Args:
+            previous_in_chain:
+                Optional; If called from another class, pass the upchain
+                dependencies, so it can be validated these are not in the child
+                dependencies
+
+        Returns:
+            Whether circular dependencies are found
         """
         if previous_in_chain is None:
             previous_in_chain = {cls.__name__}
@@ -90,7 +103,7 @@ class FieldTranslator(ABC):
 
         return False
 
-    def _process(self, payload):
+    def _process(self, payload: Any) -> Any:
         """
         Default function to process a single entry. Each type of data is
         delegated to the the specific processing function
@@ -107,9 +120,20 @@ class FieldTranslator(ABC):
             ):
         """
         Default translate function. It takes the result from the first field
-        that contains valid data.
+        that contains valid data. This default function does not handle
+        preparsed_data. Results are stored in the correct field (set by
+        self.field_name of an inheriting class) in metadata.translated
 
-        Override this to change logic, or include logic for preparsed data
+        Override this method to change logic, or include logic for preparsed
+        data
+
+        Args:
+            metadata:
+                The metadata to translate. There should be data in
+                metadata.structured to use for translation
+            preparsed_data:
+                Any additional key/value pairs that were assigned to this
+                translator in the preparsing stage
         """
         for field in self.fields:
             if field not in metadata.structured:
@@ -126,18 +150,32 @@ class FieldTranslator(ABC):
 
 class Preparser(ABC):
     """
-    Base class for field translators
+    Base class for pre parsers
     """
-    def __init__(self, fields, **kwargs):
+    def __init__(self, fields: list[str], **kwargs):
+        """
+        Initializes the Preparser instance
+
+        Args:
+            fields:
+                The fields in metadata.structured this preparser should use
+        """
         self.fields = fields
         self.properties = kwargs
 
     @abstractmethod
     def preparse(metadata: ResourceMetadata) -> dict:
         """
-        Preparses data in metadata.structured if required. Returns a dict with
-        translator functions as keys, and the preparsed data that should be
-        passed to the .translate function of the translator as values
+        Preparses data in metadata.structured if required.
+
+        Args:
+            metadata:
+                This should have the .structured attribute filled already
+
+        Returns:
+            A dict with translator functions as keys, and the preparsed data
+            that should be passed to the .translate function of the translator
+            as values
         """
         pass
 
@@ -145,6 +183,8 @@ class Preparser(ABC):
 class MetadataTranslator:
     """
     Metadata Translator
+
+    This class combines all Preparsers and translators
     """
     def __init__(self):
         # Initilialize the pre-parsers
@@ -191,9 +231,17 @@ class OrderedTranslators:
     """
     Class that handles the logic of ordering field translators based on
     dependencies. Use the as_list function to export the ordered list after
-    initiliazation
+    initialization
     """
     def __init__(self, translators: list[FieldTranslator]):
+        """
+        Initialize the OrderedTranslators instance
+
+        Args:
+            translators:
+                An unorder list of field translators, that should be ordered
+                by this instance
+        """
         # First add all independent translators to ordered translators,
         self.ordered_translators = []
         self.dependent_translators = {}
@@ -227,7 +275,9 @@ class OrderedTranslators:
     def ordered_translator_names(self):
         return [t.__class__.__name__ for t in self.ordered_translators]
 
-    def _add_independent_translator(self, dependent_translators_item):
+    def _add_independent_translator(
+            self, dependent_translators_item: FieldTranslator
+        ):
         """
         Add one of the dependent translators to the ordered translators. Takes
         an item (tuple) from the dependent translators, and adds it to the
@@ -253,14 +303,14 @@ class OrderedTranslators:
         self.ordered_translators.append(translator)
         self.dependent_translators.pop(translator_name)
 
-    def as_list(self):
+    def as_list(self) -> list[FieldTranslator]:
         """
         Export the ordered translators as a list
         """
         return self.ordered_translators
 
 
-def _convert_if_html(str_):
+def _convert_if_html(str_) -> str:
     """
     Check if a string contains html, and convert to plain text if this is the
     case
@@ -273,21 +323,23 @@ def _convert_if_html(str_):
         return str_
 
 
-def _INSPIRE_role2type(role):
-    """
-    Determines the type of information under 'role' for the INSPIRE
-    responsible-party metadata
-    """
-    roles_translation = {
-        'creator': ['author', 'principalinvestigator', 'coinvestigator'],
-        'contact': ['pointofcontact'],
-        'publisher': ['distributor', 'originator', 'publisher',
-                      'resourceprovider', 'owner']
-    }
+_roles_translation = {
+    'creator': ['author', 'principalinvestigator', 'coinvestigator'],
+    'contact': ['pointofcontact'],
+    'publisher': [
+        'distributor', 'originator', 'publisher', 'resourceprovider', 'owner',
+    ]
+}
 
+
+def _INSPIRE_role2type(role: str) -> str:
+    """
+    Determines the type (e.g. creator, contact or publisher) of information
+    under 'role' for the INSPIRE responsible-party metadata
+    """
     l_role = role.lower()
 
-    for m_type, roles in roles_translation.items():
+    for m_type, roles in _roles_translation.items():
         for role in roles:
             if l_role.endswith(role):
                 return m_type
@@ -295,12 +347,24 @@ def _INSPIRE_role2type(role):
         return None
 
 
-def _is_valid_string(str_, check_startswith=False, check_contains=False):
+def _is_valid_string(
+        str_, check_startswith: bool = False, check_contains: bool = False
+        ) -> bool:
     """
-    Validates a string, by validating whether it is not in the list of 'NONE
-    STRINGS'. Optionally it checks if the string does not start with any of
-    the phrases set in translation rules, or that it contains any of the
-    'contains' phrases in the translation rules
+    Validates if a string is considered 'valid'
+
+    At it's base, it validates whether it is not in the list of 'NONE STRINGS'.
+
+    Args:
+        check_startswith:
+            Optional; If True, it also checks if the string does not start
+            with any of the phrases set in translators.yaml
+        check_contains:
+            Optional; If True, it additionally checks if the string doesn't
+            contain any of the special phrases defined in translators.yaml
+
+    Returns:
+        Whether the string is considered valid
     """
     valid = True
     lstring = str_.lower()
@@ -356,12 +420,13 @@ class DateInfoParser:
             lower_than: datetime.datetime
             ):
         """
-        Initialize the DateInfoParser
+        Initializes the DateInfoParser
 
-        Arguments:
-            greater_than -- Parse only dates greater than this date
-
-            lower_than -- Parse only dates lower than this date
+        Args:
+            greater_than:
+                Parse only dates greater than this date
+            lower_than:
+                Parse only dates lower than this date
         """
         self.gt = self._parse_date_requirement(greater_than)
         self.lt = self._parse_date_requirement(lower_than)
@@ -430,12 +495,13 @@ class DateInfoParser:
         Parse a date string using the dateparser library (Used as last resort,
         since it's slow)
 
-        Arguments:
-            str_ -- The data to parse
-
-            dom_preference -- Date of month preference, Either 'first' to
-            prefer the first date when parsing a Month name, or 'last', to
-            prefer the last day when parsing a month without a day
+        Args:
+            str_:
+                The data to parse
+            dom_preference:
+                Date of month preference, Either 'first' to
+                prefer the first date when parsing a Month name, or 'last', to
+                prefer the last day when parsing a month without a day
         """
         if dom_preference == 'first':
             parser = self.dparser_first
@@ -471,22 +537,23 @@ class DateInfoParser:
         return self.gt < date < self.lt
 
     def parse_string(
-                self, str_, period_end: bool = False, ignore_now: bool = False
-                ) -> Union[datetime.datetime, None]:
+            self, str_, period_end: bool = False, ignore_now: bool = False
+            ) -> Union[datetime.datetime, None]:
         """
         Parse dates in strings to datetime objects
 
-        Arguments:
-            str_ -- The input to parse
+        Args:
+            str_:
+                The input to parse
+            period_end:
+                Optional; Set to true, if you want to parse the end of a
+                period. In case e.g. you provide a year, or a month, then the
+                last date/time of this year/month is used.
+            ignore_now:
+                Optional; If True, strings like 'now' or 'current' are not
+                parsed
 
-            period_end -- Set to true, if you want to parse the end of a
-            period. In case e.g. you provide a year, or a month, then the last
-            date/time of this year/month is used.
-
-            ignore_now -- If True, strings like 'now' or 'current' are not
-            parsed
-
-        Return:
+        Returns:
             The parsed date, when a valid value could be parsed
         """
         # First check if it's only a year:
@@ -548,8 +615,9 @@ class DateInfoParser:
         """
         Convert a date string to a date string in the correct format
 
-        Arguments:
-            *args, **kwargs -- See DateInfoParser.parse_string
+        Args:
+            *args, **kwargs:
+                See DateInfoParser.parse_string
         """
         date = self.parse_string(*args, **kwargs)
 
@@ -559,8 +627,10 @@ class DateInfoParser:
             return None
 
 
-def _get_preferred_language_value(list_):
+def _get_preferred_language_value(list_) -> Any:
     """
+    Gets the prefered language alternative from a list of language alternatives
+
     Tests if a list contains options for different languages, and returns
     preferred value if true, in case it's a list of language alternatives
     either (1) the first alternative for English or (2) the first item with a
@@ -603,11 +673,21 @@ def _get_preferred_language_value(list_):
     return value
 
 
-def _get_value(dict_, keys, value_type=None):
+def _get_value(dict_, keys: list[str], value_type: Any = None) -> Any:
     """
-    Extract the first availble value from dict_, for the given keys (array). If
-    value_type is given, the first value of this type is returned.
-    Return str/NoneType
+    Get the first value from a dict, that's under one of the 'keys'
+
+    Args:
+        dict_:
+            The input dict
+        keys:
+            List of dictionary keys
+        value_type:
+            Optional; If provided, the value should be an instance of the
+            give class
+
+    Returns:
+        If found, The first value found under one of the keys
     """
     for key in keys:
         if key in dict_:
@@ -633,11 +713,14 @@ def get_child_schema(schema: dict, key: str) -> dict:
 class SchemaValidationMixin:
     """
     Mixin adds the .validate function to a class, based on the 'schema' kwargs
-
-    Add. Arguments:
-        schema -- JSON Schema definition
     """
     def __init__(self, *args, schema: dict = None, **kwargs):
+        """
+        Initializes the SchemaValidationMixin instance
+
+        Args:
+            schema: JSON Schema definition
+        """
         if schema is not None:
             # If this is used in combination with the StringTruncationMixin,
             # the schema variable may already have been set by that one
@@ -657,6 +740,10 @@ class SchemaValidationMixin:
         return self._subkey_validation_functions[subkey]
 
     def is_valid(self, data, subkey: str = None) -> bool:
+        """
+        Checks if the provided data matches the JSON Schema, optionally for
+        a given subkey
+        """
         if subkey is not None:
             validate = self._subkey_validator(subkey)
         else:
@@ -671,11 +758,15 @@ class SchemaValidationMixin:
 class StringTruncationMixin:
     """
     Mixin that adds the .truncate_string function, based on the schema
-
-    Add. Arguments:
-        schema -- JSON Schema definition
     """
     def __init__(self, *args, schema: dict = None, **kwargs):
+        """
+        Initializes the StringTruncationMixin instance
+
+        Args:
+            schema:
+                JSON Schema definition
+        """
         if schema is not None:
             # If this is used in combination with the SchemaValidationMixin,
             # the schema variable may already have been set by that one
@@ -685,13 +776,27 @@ class StringTruncationMixin:
             self._schema
         )
 
-    def _get_min_max_length(self, schema):
+    def _get_min_max_length(self, schema: dict) -> tuple[int, int]:
         """Return the min/max length values from the given schema"""
         min_length = schema.get('minLength', 0)
         max_length = schema.get('maxLength', 9999999)
         return min_length, max_length
 
-    def truncate_string(self, str_, subkey: str = None):
+    def _truncate_string(self, str_, min_length: int, max_length: int) -> str:
+        """
+        Truncate a string (three dots), when exceeding max_length, returns
+        None is smaller than min_length
+        """
+        org_len = len(str_)
+        new_str = None
+        if org_len > max_length:
+            new_str = str_[:max_length-1] + '…'
+        elif org_len >= min_length:
+            new_str = str_
+
+        return new_str
+
+    def truncate_string(self, str_, subkey: str = None) -> str:
         """
         Truncate or filter a string. If the length of the string is less than
         the minimum length, None is returned, if it's above the maximum length,
@@ -708,31 +813,16 @@ class StringTruncationMixin:
             min_length = self.min_str_length
             max_length = self.max_str_length
 
-        return _aux.filter_truncate_string(
-            str_, min_length, max_length
-        )
+        org_len = len(str_)
+        if org_len > max_length:
+            return str_[:max_length-1] + '…'
+        elif org_len >= min_length:
+            return str_
 
 
 class DatePreparser(Preparser):
     """
     Preparses dictionaries that can contain data for one of the date fields
-
-    Additional arguments:
-        type_translator_mapping -- Maping of date types to a specific
-        translator
-
-        datetype_keys -- The keys to find date type information
-
-        datevalue_keys -- The keys to find the actual date under
-
-        datetype_dict_keys -- In case the value found under a datetype key is
-        dict, these dict keys are tried to extract date type information
-
-        lt -- Detected dates should be lower than this (Either the string
-        'now' or a datetime object)
-
-        gt -- Detected dates should be greater than this (Either the string
-        'now' or a datetime object)
     """
     def __init__(
             self, fields: list[str], *, type_translator_mapping: dict,
@@ -740,6 +830,30 @@ class DatePreparser(Preparser):
             datetype_dict_keys: list[str], lt: Union[str, datetime.datetime],
             gt: Union[str, datetime.datetime]
             ):
+        """
+        Initializes the DatePreparser
+
+        Args:
+            fields:
+                (See PreParser class)
+            type_translator_mapping:
+                Maping of date types to a specific
+                translator
+            datetype_keys:
+                The keys to find date type information
+            datevalue_keys:
+                The keys to find the actual date under
+            datetype_dict_keys:
+                In case the value found under a datetype key is
+                dict, these dict keys are tried to extract date type
+                information
+            lt:
+                Detected dates should be lower than this (Either the string
+                'now' or a datetime object)
+            gt:
+                Detected dates should be greater than this (Either the string
+                'now' or a datetime object)
+        """
         super().__init__(fields)
         self.type_translator_mapping = type_translator_mapping
         self.datetype_keys = datetype_keys
@@ -866,6 +980,22 @@ class TitleTranslator(StringTruncationMixin, FieldTranslator):
             dict_key_priority: list[str], type_keys: list[str],
             type_priority: list[str]
             ):
+        """
+        Initializes a TitleTranslator instance
+
+        Inherits all parameters from the StringTruncationMixin and
+        FieldTranslator and adds:
+
+        Args:
+            dict_key_priority:
+                The priority list of dictionary keys to get data from
+            type_keys:
+                The dictionary keys that describe the type of the title, rather
+                then the title itself
+            type_priority:
+                Priority list of the title types (found under the type_keys) to
+                prioritize in translation
+        """
         super().__init__(fields, schema=schema)
         self.dict_key_priority = dict_key_priority
         self.type_keys = type_keys
@@ -908,7 +1038,7 @@ class TitleTranslator(StringTruncationMixin, FieldTranslator):
                 if title is not None:
                     return title
 
-    def _process_list(self, list_):
+    def _process_list(self, list_) -> str:
         title = None
         # First try to see of it's a list of language alternatives
         langval = _get_preferred_language_value(list_)
@@ -967,12 +1097,28 @@ class DescriptionTranslator(StringTruncationMixin, FieldTranslator):
             dict_key_priority: list[str], type_keys: list[str],
             type_priority: list[str]
             ):
+        """
+        Initializes a DescriptionTranslator instance
+
+        Inherits all parameters from the StringTruncationMixin and
+        FieldTranslator and adds:
+
+        Args:
+            dict_key_priority:
+                The priority list of dictionary keys to get data from
+            type_keys:
+                The dictionary keys that describe the type of the title, rather
+                then the title itself
+            type_priority:
+                Priority list of the title types (found under the type_keys) to
+                prioritize in translation
+        """
         super().__init__(fields, schema=schema)
         self.dict_key_priority = dict_key_priority
         self.type_keys = type_keys
         self.type_priority = type_priority
 
-    def _process_string(self, str_):
+    def _process_string(self, str_) -> str:
         if (not _is_valid_string(str_)) or str_.lower() == 'description' or\
                 str_.lower() == 'abstract':
             return None
@@ -982,7 +1128,7 @@ class DescriptionTranslator(StringTruncationMixin, FieldTranslator):
         desc = desc.strip()
         return self.truncate_string(desc)
 
-    def _process_dict(self, dict_):
+    def _process_dict(self, dict_) -> str:
         desc = None
         if 'PT_FreeText' in dict_:
             # For GMD format language alternatives
@@ -1010,7 +1156,7 @@ class DescriptionTranslator(StringTruncationMixin, FieldTranslator):
 
         return desc
 
-    def _process_list(self, list_):
+    def _process_list(self, list_) -> str:
         # First try to see of it's a list of language alternatives
         langval = _get_preferred_language_value(list_)
         if langval is not None:
@@ -1057,7 +1203,7 @@ class VersionTranslator(SchemaValidationMixin, FieldTranslator):
     """Field Translator for version data"""
     field_name = "version"
 
-    def _process(self, payload):
+    def _process(self, payload) -> dict:
         """
         Currently this only supports string values, and mapping them to the
         'value' property
@@ -1079,7 +1225,7 @@ class CreatorTranslator(SchemaValidationMixin, FieldTranslator):
     initials_pattern = re.compile(r'\b([A-Z]\.?){1,2}\b')
     bracketed_numbers_pattern = re.compile(r'\(\d+\)')
 
-    def _split_creators(self, str_):
+    def _split_creators(self, str_) -> list[str]:
         # For now, only split authors if the string contains multi & or ;
         if str_.count(';') > 1:
             return str_.split(';')
@@ -1088,7 +1234,7 @@ class CreatorTranslator(SchemaValidationMixin, FieldTranslator):
         else:
             return [str_]
 
-    def _process_string(self, str_):
+    def _process_string(self, str_) -> list[dict]:
         if (
                 (not _is_valid_string(str_)) or
                 email_address_pattern.match(str_) or
@@ -1127,7 +1273,7 @@ class CreatorTranslator(SchemaValidationMixin, FieldTranslator):
 
         return creators if creators != [] else None
 
-    def _process_dict(self, dict_):
+    def _process_dict(self, dict_) -> list[dict]:
         # Three cases: (1) name key, possibly with roles or type key (2) Name
         # (capital) key or Organisation with Role, (3) creatorName key,
         # possibly with affiliation and id data
@@ -1236,7 +1382,7 @@ class CreatorTranslator(SchemaValidationMixin, FieldTranslator):
 
         return None
 
-    def _process_list(self, list_):
+    def _process_list(self, list_) -> list[dict]:
         creators = []
         for item in list_:
             if isinstance(item, str):
@@ -1250,7 +1396,7 @@ class CreatorTranslator(SchemaValidationMixin, FieldTranslator):
                 creators.extend(result)
         return creators if creators != [] else None
 
-    def _process(self, payload):
+    def _process(self, payload) -> list[dict]:
         result = super()._process(payload)
         if result is not None and len(result) <= self._schema['maxItems']:
             return result
@@ -1266,6 +1412,18 @@ class PublisherTranslator(SchemaValidationMixin, FieldTranslator):
             self, fields: list[str], *, schema: dict,
             dict_key_priority: list[str], url_keys: list[str]
             ):
+        """
+        Initializes the PublisherTranslator instance
+
+        Inherits all parameters from the SchemaValidationMixin and
+        FieldTranslator and adds:
+
+        Args:
+            dict_key_priority:
+                The priority list of dictionary keys to extract data from
+            url_keys:
+                Dictionary keys that may contain URLs related to the publisher
+        """
         super().__init__(fields, schema=schema)
         self.dict_key_priority = dict_key_priority
         self.url_keys = url_keys
@@ -1322,7 +1480,7 @@ class PublisherTranslator(SchemaValidationMixin, FieldTranslator):
 
         return pub
 
-    def _process_list(self, list_):
+    def _process_list(self, list_) -> dict:
         # First try to see of it's a list of language alternatives
         langval = _get_preferred_language_value(list_)
         if langval is not None:
@@ -1346,26 +1504,33 @@ class PublisherTranslator(SchemaValidationMixin, FieldTranslator):
 class DateTranslator(FieldTranslator):
     """
     Base class for date translators
-
-    Additional arguments:
-        lt -- Detected dates should be lower than this (Either the string
-        'now' or a datetime object)
-
-        gt -- Detected dates should be greater than this (Either the string
-        'now' or a datetime object)
-
-        favor_earliest -- If True, it tries to extract the earliest date from
-        the data, if False (default), if tries to extract the latest date
     """
     def __init__(
             self, fields: list[str], *, lt: Union[str, datetime.datetime],
             gt: Union[str, datetime.datetime], favor_earliest: bool = False
             ):
+        """
+        Initializes the DateTranslator instance
+
+        Inherits parameters from the FieldTranslator, and adds:
+
+        Args:
+            lt:
+                Detected dates should be lower than this (Either the string
+                'now' or a datetime object)
+            gt:
+                Detected dates should be greater than this (Either the string
+                'now' or a datetime object)
+            favor_earliest:
+                If True, it tries to extract the earliest date from
+                the data, if False (default), if tries to extract the latest
+                date
+        """
         super().__init__(fields)
         self.parser = DateInfoParser(gt, lt)
         self.favor_earliest = favor_earliest
 
-    def _is_inaccurate_date(self, str_):
+    def _is_inaccurate_date(self, str_) -> bool:
         """Determine if the date in the string is inaccurate (e.g. a year)"""
         return len(str_) == 4 and year_pattern.match(str_)
 
@@ -1435,8 +1600,8 @@ class DateTranslator(FieldTranslator):
             self, metadata: ResourceMetadata, *, preparsed_data: dict = None
             ):
         """
-        Note that this skips the _process function, since some tests on the
-        data itself need to be performed at this level
+        The translate function is overridden to ensure the most accurate date
+        is chosen
         """
         date = None
         inaccurate_date = None
@@ -1504,14 +1669,21 @@ class CreatedDateTranslator(DateTranslator):
 class OtherDatesTranslator(DateTranslator):
     """
     Translator for the 'otherDates' field
-
-    Adds Arguments:
-        type_mapping -- This contains all items of the fields parameters
-        as keys, and as values the types that they are mapped to
     """
     field_name = 'otherDates'
 
     def __init__(self, *args, type_mapping: dict, **kwargs):
+        """
+        Initializes a OtherDatesTranslator instance
+
+        Inherits all arguments from the DateTranslator class and adds:
+
+        Args:
+            type_mapping:
+                This maps field names (provided under the 'fields' argument) to
+                date types. Allowed date types are 'Accepted', 'Copyrighted'
+                and 'Submitted'
+        """
         super().__init__(*args, **kwargs)
         self.type_mapping = type_mapping
 
@@ -1578,23 +1750,12 @@ class OtherDatesTranslator(DateTranslator):
             metadata.translated[self.field_name] = otherdates
 
 
-# Classes are reordered, so the __init__function of the FieldTranslator is
-# skipped, because the fields parameter for this one has a different format
+# Parent classes are reordered, so the __init__function of the FieldTranslator
+# is skipped. Otherwise, triggering the SchemaValidationMixin __init__ would
+# also trigger the FieldTranslator __init__
 class ContactTranslator(FieldTranslator, SchemaValidationMixin):
     """
     Translator for the 'contact' field
-
-    Specific arguments:
-        fields -- Each field, with an array of strings indicating whether the
-        field contains a 'name', or 'details', or both.
-
-        primary_pars -- Describes pairs of fields that contain the name and
-        the details. This is a list, where each item is a list of length two,
-        containing both fields, starting with the one that holds the name
-
-        dict_key_priorities -- For each subkey (name, details), and for
-        details, each detailsType, an array of the dict keys related to these
-        elements.
     """
     field_name = 'contact'
 
@@ -1606,6 +1767,25 @@ class ContactTranslator(FieldTranslator, SchemaValidationMixin):
             self, fields: dict, primary_pairs: list, dict_key_priorities: dict,
             schema: dict
             ):
+        """
+        Initializes the ContactTranslator instance
+
+        Args:
+            fields:
+                Each field, with an array of strings indicating whether the
+                field contains a 'name', or 'details', or both.
+            primary_pars:
+                Describes pairs of fields that contain the name and
+                the details. This is a list, where each item is a list of
+                length two, containing both fields, starting with the one that
+                holds the name
+            dict_key_priorities:
+                For each subkey (name, details), and for
+                details, each detailsType, an array of the dict keys related to
+                these elements.
+            schema:
+                (See SchemaValidationMixin)
+        """
         # Since the 'fields' parameter for this class has a different layout,
         # the FieldTranslator __init__ function is skipped.
         if self.has_circular_dependencies():
@@ -1840,13 +2020,6 @@ class LicenseTranslator(
         ):
     """
     Translator for the license field
-
-    Specific Arguments:
-        dict_key_mapping -- For each possible dict key, describes whether it
-        contains a 'url' or 'text'
-
-        name_starts -- If the string starts with any of the phrases in this
-        list, it's considered a name rather then content
     """
     field_name = 'license'
 
@@ -1854,6 +2027,20 @@ class LicenseTranslator(
             self, *args, dict_key_mapping: dict, name_starts: list[str],
             **kwargs
             ):
+        """
+        Initializes a LicenseTranslator instance
+
+        Inherits all args from the StringTruncationMixin, SchemaValidationMixin
+        and FieldTranslator, and adds:
+
+        Args:
+            dict_key_mapping:
+                For each possible dict key, describes whether it
+                contains a 'url' or 'text'
+            name_starts:
+                If the string starts with any of the phrases in this
+                list, it's considered a name rather than content
+        """
         super().__init__(*args, **kwargs)
         self.dict_key_mapping = dict_key_mapping
         self.name_starts = name_starts
@@ -1942,7 +2129,7 @@ class LicenseTranslator(
         if combined_data:
             return combined_data
 
-    def _process_list(self, list_):
+    def _process_list(self, list_) -> dict:
         data = {}
         for item in list_:
             if isinstance(item, str):
@@ -1981,12 +2168,6 @@ class LicenseTranslator(
 class MaintenanceTranslator(FieldTranslator):
     """
     Translator for the maintenance field
-
-    Specific arguments:
-        period_dict_keys -- Dictionary keys that contain possible period
-        information
-
-        period_mapping -- A mapping from field values to a period
     """
     field_name = 'maintenance'
 
@@ -1994,6 +2175,17 @@ class MaintenanceTranslator(FieldTranslator):
             self, *args, period_dict_keys: list[str], period_mapping: dict,
             **kwargs
             ):
+        """
+        Initializes a MaintenanceTranslator instance
+
+        Inherits all arguments from the FieldTranslator and adds:
+
+        Args:
+            period_dict_keys:
+                Dictionary keys that contain possible period information
+            period_mapping:
+                A mapping from field values to a period
+        """
         super().__init__(*args, **kwargs)
         self.period_dict_keys = period_dict_keys
         self.period_mapping = period_mapping
@@ -2027,9 +2219,6 @@ class MaintenanceTranslator(FieldTranslator):
 class IdentifierTranslator(FieldTranslator):
     """
     Translator for the maintenance field
-
-    Specific arguments:
-        dict_key_priority -- The priority of dictionary keys to process
     """
     field_name = 'identifier'
 
@@ -2040,10 +2229,19 @@ class IdentifierTranslator(FieldTranslator):
     isbn_pattern = re.compile(r'(isbn[=:]?\s?)?([\d\-\s]{9,17}x?)$')
 
     def __init__(self, *args, dict_key_priority: list[str], **kwargs):
+        """
+        Initializes a IdentifierTranslator instance
+
+        Inherits all arguments from the FieldTranslator and adds:
+
+        Args:
+            dict_key_priority:
+                The priority of dictionary keys to get data from
+        """
         super().__init__(*args, **kwargs)
         self.dict_key_priority = dict_key_priority
 
-    def _extract_isbn(self, str_):
+    def _extract_isbn(self, str_) -> dict:
         match = self.isbn_pattern.match(str_)
         if match:
             isbn = match.group(2)
@@ -2056,7 +2254,7 @@ class IdentifierTranslator(FieldTranslator):
             if length == 10 or length == 13:
                 return {'type': 'ISBN', 'value': cleaned_isbn}
 
-    def _process_string(self, str_):
+    def _process_string(self, str_) -> dict:
         lstr = str_.lower()
         if lstr == '':
             return
@@ -2068,7 +2266,7 @@ class IdentifierTranslator(FieldTranslator):
         else:
             return
 
-    def _process_dict(self, dict_):
+    def _process_dict(self, dict_) -> dict:
         for key in self.dict_key_priority:
             if key in dict_:
                 dat = dict_[key]
@@ -2077,7 +2275,7 @@ class IdentifierTranslator(FieldTranslator):
                     if result is not None:
                         return result
 
-    def _process_list(self, list_):
+    def _process_list(self, list_) -> dict:
         for item in list_:
             result = self._process(item)
             if result is not None:
@@ -2087,12 +2285,6 @@ class IdentifierTranslator(FieldTranslator):
 class TypeTranslator(FieldTranslator):
     """
     Translator for the 'type' field
-
-    Specific Arguments:
-        type_mapping -- Mapping between types in the source data, and types in
-        the OpenDaL classification
-
-        dict_key_priority -- Dictionairy keys to extract type data from
     """
     field_name = 'type'
 
@@ -2100,6 +2292,18 @@ class TypeTranslator(FieldTranslator):
             self, *args, type_mapping: dict, dict_key_priority: list[str],
             **kwargs
             ):
+        """
+        Initializes the TypeTranslator instance
+
+        Inherits all arguments from the FieldTranslator class and adds:
+
+        Args:
+            type_mapping:
+                Mapping between types in the source data, and types in
+                the OpenDaL classification (TODO: Add reference with options)
+            dict_key_priority:
+                Dictionairy keys to extract type data from
+        """
         super().__init__(*args, **kwargs)
         self.type_mapping = type_mapping
         self.dict_key_priority = dict_key_priority
@@ -2173,7 +2377,7 @@ class TypeTranslator(FieldTranslator):
             else:
                 return filt_types[0]
 
-    def _get_full_hierarchy(self, type_) -> list:
+    def _get_full_hierarchy(self, type_: str) -> list:
         """Get a list, including all the parents of the given type"""
         type_parts = type_.split(':')
         all_types = []
@@ -2197,11 +2401,6 @@ class TypeTranslator(FieldTranslator):
 class SubjectTranslator(SchemaValidationMixin, FieldTranslator):
     """
     Translator for the Subject data
-
-    Specific Arguments:
-        source_max_size -- The maximum size of the source date
-
-        dict_key_priority -- The dict keys to extract subject data from
     """
     field_name = 'subject'
 
@@ -2209,6 +2408,18 @@ class SubjectTranslator(SchemaValidationMixin, FieldTranslator):
             self, *args, source_max_size: int, dict_key_priority: list[str],
             **kwargs
             ):
+        """
+        Initializes the SubjectTranslator instance
+
+        Inherits all arguments from the SchemaValidationMixin and
+        FieldTranslator classes and adds:
+
+        Args:
+            source_max_size:
+                The maximum size of the source date
+            dict_key_priority:
+                The dict keys to extract subject data from
+        """
         super().__init__(*args, **kwargs)
         self.source_max_size = source_max_size
         self.dict_key_priority = dict_key_priority
@@ -2288,7 +2499,7 @@ class SubjectTranslator(SchemaValidationMixin, FieldTranslator):
 
         return standard_strings
 
-    def _process_list(self, list_):
+    def _process_list(self, list_) -> list[str]:
         """Returns a list of standardized strings"""
         if len(list_) > self.source_max_size:
             return []
@@ -2308,7 +2519,7 @@ class SubjectTranslator(SchemaValidationMixin, FieldTranslator):
         else:
             return []
 
-    def _relations_removed(self, subject_set) -> list[str]:
+    def _relations_removed(self, subject_set: set) -> list[str]:
         """
         Remove parents and relations from a set of subjects, keeps only
         lowest level unique subjects. Also removes relations of relations
@@ -2322,7 +2533,7 @@ class SubjectTranslator(SchemaValidationMixin, FieldTranslator):
 
         return [s for s in subject_set if s not in relations_parents]
 
-    def _parents_added(self, subject_list) -> list[str]:
+    def _parents_added(self, subject_list: list[str]) -> list[str]:
         """
         Add all parents to the list of subjects
         """
@@ -2368,13 +2579,6 @@ class SubjectTranslator(SchemaValidationMixin, FieldTranslator):
 class LocationTranslator(SchemaValidationMixin, FieldTranslator):
     """
     Translator for location data
-
-    Specific Arguments:
-        bbox_field_pairs -- A list of pairs of field names. A pair is a list of
-        4 field names, in the order west, south, east, north, that together
-        contain the data for a bounding box
-
-        bbox_key_pairs -- Same as above, but for keys inside dictionary data
     """
     field_name = 'location'
     bbox_kv_groups = [
@@ -2402,6 +2606,20 @@ class LocationTranslator(SchemaValidationMixin, FieldTranslator):
             self, *args, bbox_field_pairs: list[list[str]],
             bbox_key_pairs: list[list[str]], **kwargs
             ):
+        """
+        Initializes a LocationTranslator instance
+
+        Inherits all arguments from the SchemaValidationMixin and
+        FieldTranslator classes, and adds:
+
+        Args:
+            bbox_field_pairs:
+                A list of pairs of field names. A pair is a list of
+                4 field names, in the order west, south, east, north, that
+                together contain the data for a bounding box
+            bbox_key_pairs:
+                Same as above, but for keys inside dictionary data
+        """
         super().__init__(*args, **kwargs)
         self.bbox_field_pairs = bbox_field_pairs
         self.bbox_field_pair_sets = [set(pair) for pair in bbox_field_pairs]
@@ -2432,7 +2650,7 @@ class LocationTranslator(SchemaValidationMixin, FieldTranslator):
     def _create_feature(
             self, name: str = None, geometry: dict = None,
             elevation: float = None
-            ):
+            ) -> dict:
         all_none = True
         location = {}
         if name is not None:
@@ -2483,7 +2701,7 @@ class LocationTranslator(SchemaValidationMixin, FieldTranslator):
             geometry = self._create_geometry(*args)
             return self._create_feature(geometry=geometry)
 
-    def _locations_from_shape(self, shape: geometry.shape):
+    def _locations_from_shape(self, shape: geometry.shape) -> list[dict]:
         results = []
 
         try:
@@ -2525,11 +2743,11 @@ class LocationTranslator(SchemaValidationMixin, FieldTranslator):
             if not str_.startswith('{') and str_.endswith('}'):
                 if str_.startswith('"') and str_.endswith(']'):
                     newstr = '{' + str_ + '}'
-                    geojson_data = _aux.string_conversion(newstr)
+                    geojson_data = _common.string_conversion(newstr)
                 else:
                     geojson_data = None
             else:
-                geojson_data = _aux.string_conversion(str_)
+                geojson_data = _common.string_conversion(str_)
 
             if isinstance(geojson_data, dict):
                 return self._process_geojson(geojson_data)
@@ -2785,7 +3003,11 @@ class LocationTranslator(SchemaValidationMixin, FieldTranslator):
         return out_locs
 
     def _location_from_bbox_pair_data(
-            self, xmin_data, ymin_data, xmax_data, ymax_data
+            self,
+            xmin_data: Union[str, int, float],
+            ymin_data:  Union[str, int, float],
+            xmax_data:  Union[str, int, float],
+            ymax_data:  Union[str, int, float],
             ) -> dict:
         """Create a location from the data in bbox pair fields"""
         try:
@@ -2843,24 +3065,6 @@ class LocationTranslator(SchemaValidationMixin, FieldTranslator):
 class TimePeriodTranslator(FieldTranslator):
     """
     Translator for time period data
-
-    Specific arguments:
-        lt -- Max date should be lower than this
-
-        gt -- Min date should be bigger than this
-
-        begin_end_field_pairs -- List of field pairs. A field pair is a list
-        with the names of the fields containing the start and the end data
-
-        dict_key_priority -- A dictionary with the keys 'start' and 'end',
-        each one having as value a list of dict-keys that either resemble a
-        start or an end of a period
-
-        seperators -- List of seperators that may be between the start and the
-        end-date, in case the data is a string
-
-        remove_strings -- If any of the strings in this list is in string data,
-        remove it before further processing of the data
     """
     field_name = 'timePeriod'
 
@@ -2875,6 +3079,30 @@ class TimePeriodTranslator(FieldTranslator):
             begin_end_field_pairs: list[list[str]], dict_key_priority: dict,
             seperators: list[str], remove_strings: list[str], **kwargs
             ):
+        """
+        Initializes the TimePeriodTranslator
+
+        Inherits all arguments from the FieldTranslator and adds:
+
+        Args:
+            lt:
+                Max date should be lower than this
+            gt:
+                Min date should be bigger than this
+            begin_end_field_pairs:
+                List of field pairs. A field pair is a list with the names of
+                the fields containing the start and the end data
+            dict_key_priority:
+                A dictionary with the keys 'start' and 'end',
+                each one having as value a list of dict-keys that either
+                resemble a start or an end of a period
+            seperators:
+                List of seperators that may be between the start and the
+                end-date, in case the data is a string
+            remove_strings:
+                If any of the strings in this list is in string data,
+                remove it before further processing of the data
+        """
         super().__init__(*args, **kwargs)
         self.parser = DateInfoParser(gt, lt)
         self.begin_end_field_pairs = begin_end_field_pairs
@@ -2895,7 +3123,7 @@ class TimePeriodTranslator(FieldTranslator):
 
     def _create_timeperiod(
             self, start: datetime.datetime, end: datetime.datetime
-            ):
+            ) -> dict:
         if (
                 self.parser.is_valid(start) and self.parser.is_valid(end) and
                 not start > end
@@ -2906,7 +3134,7 @@ class TimePeriodTranslator(FieldTranslator):
                 'end': end.strftime(st.DATE_FORMAT),
             }
 
-    def _parse_ISO_duration(self, str_):
+    def _parse_ISO_duration(self, str_) -> datetime.timedelta:
         """
         Parse a simple ISO duration to timedelta object (with one date or time
         value)
@@ -3073,7 +3301,7 @@ class TimePeriodTranslator(FieldTranslator):
 
         return data
 
-    def _process_start_end(self, start_data, end_data) -> dict:
+    def _process_start_end(self, start_data: Any, end_data: Any) -> dict:
         """This returns a single time_period rather than an array"""
         if not (isinstance(start_data, str) and isinstance(end_data, str)):
             return
@@ -3175,6 +3403,9 @@ class TimePeriodTranslator(FieldTranslator):
 
 
 class FormatTranslator(FieldTranslator):
+    """
+    Translator for file/data-format information
+    """
     field_name = 'format'
 
     file_format_mapping = _loadcfg.file_format_mapping()
@@ -3225,7 +3456,7 @@ class FormatTranslator(FieldTranslator):
 
         return data
 
-    def _process(self, payload):
+    def _process(self, payload: Any) -> list[str]:
         """Drop default support for dicts"""
         if isinstance(payload, str):
             return self._process_string(payload)
@@ -3253,9 +3484,6 @@ class FormatTranslator(FieldTranslator):
 class LanguageTranslator(FieldTranslator):
     """
     Translator for Language data
-
-    Specific Arguments:
-        dict_key_priority -- The dictionary keys that may contain language data
     """
     field_name = 'language'
 
@@ -3263,6 +3491,15 @@ class LanguageTranslator(FieldTranslator):
     and_or_pattern = re.compile(r'\band\b|\bor\b')
 
     def __init__(self, *args, dict_key_priority: list[str], **kwargs):
+        """
+        Initializes the LanguageTranslator
+
+        Inherits all arguments from the FieldTranslator class and adds:
+
+        Args:
+            dict_key_priority:
+                The dictionary keys that may contain language data
+        """
         super().__init__(*args, **kwargs)
         self.dict_key_priority = dict_key_priority
 
@@ -3365,10 +3602,6 @@ class LanguageTranslator(FieldTranslator):
 class CoordinateSystemTranslator(FieldTranslator):
     """
     Coordinate System Translator
-
-    Specific Arguments:
-        dict_key_priority -- The dict keys that may contain coordinate system
-        descriptions
     """
     field_name = 'coordinateSystem'
 
@@ -3378,6 +3611,15 @@ class CoordinateSystemTranslator(FieldTranslator):
     cs_name_pattern = re.compile(r'((projcs)|(geogcs))\["(.*?)"')
 
     def __init__(self, *args, dict_key_priority: list[str], **kwargs):
+        """
+        Initializes the CoordinateSystemTranslator instance
+
+        Inherits all arguments from the base 'FieldTranslator' and adds:
+
+        Args:
+            dict_key_priority:
+                The dict keys that may contain coordinate system descriptions
+        """
         super().__init__(*args, **kwargs)
         self.dict_key_priority = dict_key_priority
 
@@ -3432,7 +3674,7 @@ class CoordinateSystemTranslator(FieldTranslator):
 
         return epsg_list
 
-    def _process(self, payload):
+    def _process(self, payload) -> list[int]:
         if isinstance(payload, str):
             return self._process_string(payload)
         elif isinstance(payload, dict):

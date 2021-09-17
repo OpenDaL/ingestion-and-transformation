@@ -2,6 +2,7 @@
 """
 Create analysis results for each file in the input directory
 """
+# TODO: Check if this still works
 import logging
 import argparse
 from pathlib import Path

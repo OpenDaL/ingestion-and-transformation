@@ -1,13 +1,10 @@
 # -*- coding: utf-8 -*-
 """
-STRUCTURING SUB-MODULE
+Structurers Module
 
-Contains functions that structure the ingested metadata into a flattened format
-, creating a consistent format before translation of metadata
-
-Every Flattening Function should:
-* Filter Junk data
-* Create a '_dplatform_externalReference' and '_dplatform_uid'
+The structurer classes in this module enable the structuring of data that is
+harvested from the Open Data Portals. Each Structurer should inherit from the
+base 'Structurer' class, and can use Mixins for shared functionality.
 """
 import re
 import logging
@@ -16,29 +13,28 @@ from typing import Union
 from urllib.parse import quote_plus
 
 from metadata_ingestion.resource import ResourceMetadata
-from metadata_ingestion import _aux, sources
+from metadata_ingestion import _common, sources
 
 from metadata_ingestion.settings import REP_TEXTKEY
 
 logger = logging.getLogger(__name__)
 
-# To reformat geoblacklight keys:
-bl_key_replace = re.compile(
-    '(^(dct?|layer)_)|(_(sm?|dt|ssim|dtsi|ssi|ssm|tesim|dtsim)$)'
-)
-
 
 class Structurer(ABC):
     """
-    Base class for structurers. In combination with mixin classes and child
-    methods, structurers can be built
+    Structurer base class.
 
-    Arguments:
-        source_id -- str: The id of the source for which this structurer
-        structures data (e.g. data_gov_us)
+    Use this as the base class of every structurer, possibly combined with
+    other mixins defined in this module.
     """
-
     def __init__(self, source_id: str):
+        """
+        Initializes the Structurer instance
+
+        Args:
+            source_id:
+                The id of the source to structure
+        """
         self.source_id = source_id
 
     def _fill_structured(self, metadata: ResourceMetadata):
@@ -53,7 +49,7 @@ class Structurer(ABC):
         Flatten and structure harvested data to prepare it for translation
 
         Arguments:
-            metadata -- A ResourceMetadata object with harvested data
+            metadata:A ResourceMetadata object with harvested data
         """
         self._fill_structured(metadata)
         metadata.meta['source']['id'] = self.source_id
@@ -64,7 +60,9 @@ class Structurer(ABC):
         if metadata.is_filtered:
             return
         else:
-            metadata.structured = _aux.remove_empty_keys(metadata.structured)
+            metadata.structured = _common.remove_empty_keys(
+                metadata.structured
+            )
 
     @abstractmethod
     def _process(self, metadata: ResourceMetadata):
@@ -81,7 +79,7 @@ def get_structurer(source_id: str) -> Structurer:
     id
 
     Arguments:
-        source_id -- The Id of a source configured in sources.yaml
+        source_id: The Id of a source configured in sources.yaml
     """
     source_data = sources[source_id]
     structurer_class_name = source_data['structurer']
@@ -90,23 +88,26 @@ def get_structurer(source_id: str) -> Structurer:
     return globals()[structurer_class_name](source_id, **structurer_kwargs)
 
 
-# MIXIN CLASSES: These add functionlity to the _process function
+# MIXIN CLASSES: These add functionlity to a structurer
 class KeyIdMixin:
-    """
-    Structurer Mixin to derive ID from a specific key
-
-    Adds Arguments:
-        id_key -- Key where the id is stored (See loc parameter of
-        _aux.get_data_from_loc() for the different options)
-
-        id_from_harvested -- Optional; If True, the id is retrieved from
-        metadata.harvested rather than metadata.structured
-    """
-
+    """Structurer Mixin to derive ID from a specific key"""
     def __init__(
             self, *args, id_key: Union[dict, str] = None,
             id_from_harvested: bool = False, **kwargs
             ):
+        """
+        Initializes the Mixin instance
+
+        This Mixin adds the following arguments to an inheriting class:
+
+        Args:
+            id_key:
+                Key where the id is stored (See loc parameter of
+                _common.get_data_from_loc() for the different options)
+            id_from_harvested:
+                Optional; If True, the id is retrieved from metadata.harvested
+                rather than metadata.structured
+        """
         self.id_key = id_key
         self.id_from_harvested = id_from_harvested
         super().__init__(*args, **kwargs)
@@ -119,7 +120,7 @@ class KeyIdMixin:
                 basedata = metadata.structured
 
             local_id = str(
-                _aux.get_data_from_loc(
+                _common.get_data_from_loc(
                     basedata, self.id_key, pop=True
                 )
             )
@@ -130,20 +131,24 @@ class KeyIdMixin:
 class KeyUrlMixin:
     """
     Structurer Mixin to derive the url of an entry from a specific key
-
-    Adds Arguments:
-        url_key -- Optional; The key from which to derive the URL. If not
-        given, this Mixin is not used to add the URL. See
-        _aux.get_data_from_loc for format.
-
-        url_from_harvested -- Optional; If True, get the url from
-        metadata.harvested rather than metadata.structured
     """
-
     def __init__(
             self, *args, url_key: Union[dict, str] = None,
             url_from_harvested: bool = False, **kwargs
             ):
+        """
+        Initialize the Mixin Instance
+
+        Args:
+            url_key:
+                Optional; The key from which to derive the URL. If not
+                given, this Mixin is not used to add the URL. See
+                _common.get_data_from_loc for format.
+
+            url_from_harvested:
+                Optional; If True, get the url from metadata.harvested rather
+                than metadata.structured
+        """
         self.url_key = url_key
         self.url_from_harvested = url_from_harvested
         super().__init__(*args, **kwargs)
@@ -155,7 +160,7 @@ class KeyUrlMixin:
             else:
                 basedata = metadata.structured
 
-            url_data = _aux.get_data_from_loc(
+            url_data = _common.get_data_from_loc(
                 basedata, self.url_key, pop=True
             )
             if isinstance(url_data, list):
@@ -172,39 +177,7 @@ class BaseUrlMixin:
     """
     Structurer Mixin to derive by appending the id, or value of another key to
     a provided base_url
-
-    Adds Arguments:
-        base_url -- Optional; The url to append the id or other key value to.
-        If not given it is assumed another UrlMixin is used, and this code is
-        not run
-
-        url_suffix_key=None -- If provided the content of this key is used,
-        rather then the id, as the suffix for the final URL
-
-        url_suffix_from_harvested -- Optional; If True, get the URL suffix
-        from metadata.harvested rather than metadata.structured
-
-        url_id_suffix_as_backup -- Optional; If True, and the url_suffix_key is
-        not found, the 'meta.localId' is used as backup
-
-        strip_base_url_slash -- Optional; By default a slash is added to a
-        base_url if it's not there, and it doesn't end with '='. Setting this
-        to True means any trailing slash in the base_url is stripped.
-
-        base_url_suffix_mapping_key -- Optional; Use together with below
-        parameter. This indicates what key to use the value from, to loop up
-        the suffix in the below mapping
-
-        base_url_suffix_mapping --- Optional; In some cases URLs have a middle
-        part that depends on the value of a specific key. The base_url suffix
-        mapping is used to map the values of a specific key to a base_url
-        suffix, e.g.:
-        {
-            'Dataset': 'datasets',
-            'Text': 'publications'
-        }
     """
-
     def __init__(
             self, *args, base_url: str = None, url_suffix_key: str = None,
             url_suffix_from_harvested: bool = False,
@@ -213,6 +186,41 @@ class BaseUrlMixin:
             base_url_suffix_mapping_key: Union[str, dict] = None,
             base_url_suffix_mapping: dict = None, **kwargs
             ):
+        """
+        Initializes the Mixin instance
+
+        Args:
+            base_url:
+                Optional; The url to append the id or other key value to.
+                If not given it is assumed another UrlMixin is used, and this
+                code is not run
+            url_suffix_key:
+                If provided the content of this key is used,
+                rather then the id, as the suffix for the final URL
+            url_suffix_from_harvested:
+                Optional; If True, get the URL suffix
+                from metadata.harvested rather than metadata.structured
+            url_id_suffix_as_backup:
+                Optional; If True, and the url_suffix_key is not found, the
+                'meta.localId' is used as backup
+            strip_base_url_slash:
+                Optional; By default a slash is added to a base_url if it's not
+                there, and it doesn't end with '='. Setting this to True means
+                any trailing slash in the base_url is stripped.
+            base_url_suffix_mapping_key:
+                Optional; Use together with below parameter. This indicates
+                what key to use the value from, to loop up the suffix in the
+                below mapping
+            base_url_suffix_mapping:
+                Optional; In some cases URLs have a middle part that depends on
+                the value of a specific key. The base_url suffix mapping is
+                used to map the values of a specific key to a base_url
+                suffix, e.g.:
+                {
+                    'Dataset': 'datasets',
+                    'Text': 'publications'
+                }
+        """
         if base_url is not None and not base_url.endswith('='):
             base_url = base_url.rstrip('/')
             if not strip_base_url_slash:
@@ -258,18 +266,22 @@ class FormatStringUrlMixin:
     """
     Mixin to construct the URL based on a format string that's filled with the
     value of a specific key
-
-    Arguments:
-        format_url -- Optional; The URL format string with one empty position,
-        e.g. (https://domain.tld/{}/view)
-
-        format_url_key -- Optional; The key to use when filling the format
-        url string. If not provided, the id is used.
     """
     def __init__(
             self, *args, format_url: str = None, format_url_key: str = None,
             **kwargs
             ):
+        """
+        Initializes the Mixin instance
+
+        Args:
+            format_url:
+                Optional; The URL format string with one empty position,
+                e.g. (https://domain.tld/{}/view)
+            format_url_key:
+                Optional; The key to use when filling the format
+                url string. If not provided, the id is used.
+        """
         self.format_url = format_url
         self.format_url_key = format_url_key
         super().__init__(*args, **kwargs)
@@ -277,7 +289,7 @@ class FormatStringUrlMixin:
     def _process(self, metadata: ResourceMetadata):
         if self.format_url is not None:
             if self.format_url_key is not None:
-                url_part = _aux.get_data_from_loc(
+                url_part = _common.get_data_from_loc(
                     metadata.processed, self.format_url_key
                 )
                 if url_part is None:
@@ -291,12 +303,14 @@ class FormatStringUrlMixin:
 class RemoveKeysMixin:
     """
     Structurer Mixin to remove specific keys from metadata.structured
-
-    Adds Arguments:
-        remove_keys -- The keys to remove from the structured data
     """
+    def __init__(self, *args, remove_keys: list[str] = None, **kwargs):
+        """
+        Initializes the Mixin instance
 
-    def __init__(self, *args, remove_keys: list = None, **kwargs):
+        Args:
+            remove_keys: The keys to remove from the structured data
+        """
         self.remove_keys = remove_keys
         super().__init__(*args, **kwargs)
 
@@ -310,13 +324,15 @@ class RemoveKeysMixin:
 class RenameKeysMixin:
     """
     Structurer Mixin to rename specific keys in metadata.structured
-
-    Adds Arguments:
-        rename_keys -- Contains pairs of original keys, and the key to rename
-        to
     """
-
     def __init__(self, *args, rename_keys: list[list] = None, **kwargs):
+        """
+        Initializes the Mixin instance
+
+        Args:
+            rename_keys:
+                Contains pairs of original keys, and the key to rename to
+        """
         self.rename_keys = rename_keys
         super().__init__(*args, **kwargs)
 
@@ -333,34 +349,6 @@ class KeyValueFilterMixin:
     """
     Structurer Mixin to filter entries that contain specific values under a
     key
-
-    Adds Arguments:
-        key_value_filter_options -- Provides the options for filtering
-        key/value combinations, e.g.:
-        [
-            {
-                'key': {'organization': 'id'},
-                'values': ['irrelevant_organization_1'],
-                'type': 'reject'
-            },
-            {
-                'key': 'type',
-                'values': ['Dataset'],
-                'type': 'accept',
-                'should_completely_match': True
-            }
-        ]
-        'should_completely_match' indicates if all values (in case it's a list)
-        should match the requirement (In case of the above, an entry with both
-        type Dataset and Document would be rejected). By default,
-        'should_completely_match' is false. reject/keep_values should be simple
-        types such as string, int, float or bool. Please note that the above
-        list is evaluated as 'and'. So if there is two times a type == 'accept'
-        filter, both of them should match. This behaviour can be overriden by
-        adding  '"standalone_accept": True'
-
-        kv_filter_from_harvested -- Optional; If true, the filter is based on
-        metadata.harvested, rather than metadata.structured
     """
     _allowed_types = set(['accept', 'reject'])
 
@@ -368,6 +356,39 @@ class KeyValueFilterMixin:
             self, *args, key_value_filter_options: list[dict] = None,
             kv_filter_from_harvested: bool = False, **kwargs
             ):
+        """
+        Initialize the Mixin instance
+
+        Args:
+            key_value_filter_options:
+                Provides the options for filtering key/value combinations,
+                e.g.:
+                [
+                    {
+                        'key': {'organization': 'id'},
+                        'values': ['irrelevant_organization_1'],
+                        'type': 'reject'
+                    },
+                    {
+                        'key': 'type',
+                        'values': ['Dataset'],
+                        'type': 'accept',
+                        'should_completely_match': True
+                    }
+                ]
+                'should_completely_match' indicates if all values (in case it's
+                a list) should match the requirement (In case of the above, an
+                entry with both type Dataset and Document would be rejected).
+                By default, 'should_completely_match' is false.
+                reject/keep_values should be simple types such as string, int,
+                float or bool. Please note that the above list is evaluated as
+                'and'. So if there is two times a type == 'accept' filter, both
+                of them should match. This behaviour can be overriden by adding
+                '"standalone_accept": True'
+            kv_filter_from_harvested:
+                Optional; If true, the filter is based on metadata.harvested,
+                rather than metadata.structured
+        """
         if key_value_filter_options is not None:
             self.key_value_filter_options = key_value_filter_options
         else:
@@ -432,7 +453,7 @@ class KeyValueFilterMixin:
             filter_type = filter_option['type']
             should_completely_match = filter_option['should_completely_match']
 
-            actual_values = _aux.get_data_from_loc(basedata, key)
+            actual_values = _common.get_data_from_loc(basedata, key)
             has_value = (actual_values is not None)
 
             if not has_value:
@@ -470,10 +491,9 @@ class KeyValueFilterMixin:
 
 class CKANTranslateMixin:
     """
-    Structurer Mixin transpose english translated data onto the 'title' and
+    Structurer Mixin transposes english translated data onto the 'title' and
     'notes' keys
     """
-
     def _process(self, metadata: ResourceMetadata):
         # If title AND/OR description are not in the root, but in translation:
         translation_data = metadata.structured.get('translation')
@@ -486,7 +506,7 @@ class CKANTranslateMixin:
             # get 'en', otherwise first in there
             transl_data = translation_data.get('en')
             if transl_data is None:
-                transl_data = _aux.get_first_key_data_with_len(
+                transl_data = _common.get_first_key_data_with_len(
                     translation_data, 2
                 )
             if transl_data is None:
@@ -519,18 +539,21 @@ class CKANTranslateMixin:
 class CleanXMLMixin:
     """
     Structurer Mixin to clean xml data
-
-    Adds Arguments:
-        prefer_upper_xml_key -- See 'prefer_upper' parameter of
-        _aux.clean_xml_metadata
     """
-
     def __init__(self, *args, prefer_upper_xml_key: bool = False, **kwargs):
+        """
+        Initialize the Mixin Instance
+
+        Args:
+            prefer_upper_xml_key:
+                Optional; See 'prefer_upper' parameter of
+                _common.clean_xml_metadata
+        """
         self.prefer_upper_xml_key = prefer_upper_xml_key
         super().__init__(*args, **kwargs)
 
     def _process(self, metadata: ResourceMetadata):
-        metadata.structured = _aux.clean_xml_metadata(
+        metadata.structured = _common.clean_xml_metadata(
             metadata.structured,
             prefer_upper=self.prefer_upper_xml_key
         )
@@ -542,28 +565,31 @@ class RaiseKeyValueListMixin:
     """
     Structurer Mixin to raise the key value combinations specified in a list,
     to the top level
-
-    Adds Arguments:
-        raise_key_value_list_options -- Contains the configuration of the keys
-        to raise, and the names used for the keys and values in that list. See
-        example below:
-        [
-            {
-                'key': 'extras',
-                'keykey': 'key',
-                'valuekey': 'value'
-            }
-        ]
-        Note that 'key' can also be a dict, see _aux.get_data_from_loc for
-        specifics
-
-        raise_kvl_from_harvested -- Optional; If true, the key value list is
-        taken from metadata.harvested rather than metadata.structured
     """
-
     def __init__(
             self, *args, raise_key_value_list_options: list[dict] = None,
             raise_kvl_from_harvested: bool = False, **kwargs):
+        """
+        Initializes the Mixin instance
+
+        Args:
+            raise_key_value_list_options:
+                Optional; Contains the configuration of the keys to raise, and
+                the names used for the keys and values in that list. See
+                example below:
+                [
+                    {
+                        'key': 'extras',
+                        'keykey': 'key',
+                        'valuekey': 'value'
+                    }
+                ]
+                Note that 'key' can also be a dict, see
+                _common.get_data_from_loc for specifics
+            raise_kvl_from_harvested:
+                Optional; If true, the key value list is
+                taken from metadata.harvested rather than metadata.structured
+        """
         if raise_key_value_list_options is not None:
             self.raise_key_value_list_options = raise_key_value_list_options
         else:
@@ -593,7 +619,7 @@ class RaiseKeyValueListMixin:
             basedata = metadata.structured
 
         for raise_option in self.raise_key_value_list_options:
-            list_ = _aux.get_data_from_loc(
+            list_ = _common.get_data_from_loc(
                 basedata, raise_option['key'], pop=True, default=[]
             )
             for item in list_:
@@ -601,11 +627,13 @@ class RaiseKeyValueListMixin:
                 value = item[raise_option['valuekey']]
                 if isinstance(value, str):
                     try:
-                        value = _aux.string_conversion(value)
+                        value = _common.string_conversion(value)
                     except TypeError:
                         # For rare cases where there's a malformed object
                         continue
-                store_key = _aux.rename_if_duplicate(key, metadata.structured)
+                store_key = _common.rename_if_duplicate(
+                    key, metadata.structured
+                )
                 metadata.structured[store_key] = value
 
         super()._process(metadata)
@@ -614,23 +642,26 @@ class RaiseKeyValueListMixin:
 class FormatMixin:
     """
     Structurer Mixin to extract format information from an entry
-
-    Adds Arguments:
-        format_key -- Location of format information (see
-        _aux.get_data_from_loc for specifics)
-
-        get_format_from_harvested -- Optional; If true, the format data is
-        taken from the metadata.harvested instead of
-        metadata.structured
-
-        format_accept_subvalues -- Optional; accept_subvalue parameter for
-        _aux.get_data_from_loc function
     """
-
     def __init__(
             self, *args, format_key: Union[str, dict] = None,
             get_format_from_harvested: bool = False,
-            format_accept_subvalues: bool = False, **kwargs):
+            format_accept_subvalues: bool = False, **kwargs
+            ):
+        """
+        Initialize the Mixin instance
+
+        Args:
+            format_key:
+                Location of format information (see
+                _common.get_data_from_loc for specifics)
+            get_format_from_harvested:
+                Optional; If true, the format data is taken from the
+                metadata.harvested instead of metadata.structured
+            format_accept_subvalues:
+                Optional; accept_subvalue parameter for
+                _common.get_data_from_loc function
+        """
         self.format_key = format_key
         self.format_accept_subvalues = format_accept_subvalues
         self.get_format_from_harvested = get_format_from_harvested
@@ -646,7 +677,7 @@ class FormatMixin:
         if self. format_key is not None\
                 and 'format' not in metadata.structured:
             formats = None
-            rformats = _aux.get_data_from_loc(
+            rformats = _common.get_data_from_loc(
                 basedata, self.format_key,
                 accept_subvalue=self.format_accept_subvalues
             )
@@ -668,19 +699,22 @@ class RaiseToParentMixin:
     """
     Structurer Mixin to raise the data that's under a subkey, to the parent
     key
-
-    Adds Arguments:
-        raise_to_parent_key -- Location of subkey (dict) that should be raised
-        to the parent key (key at top-most level of dict, see
-        _aux.get_data_from_loc)
-
-        rtp_from_harvested -- Optional; If True, the subkey data is
-        raised from metadata.harvested rather than metadata.structured
     """
-
     def __init__(
             self, *args, raise_to_parent_key: dict = None,
             rtp_from_harvested: bool = False, **kwargs):
+        """
+        Initializes the Mixin instance
+
+        Args:
+            raise_to_parent_key:
+                Optional; Location of subkey (dict) that should be raised to
+                the parent key (key at top-most level of dict, see
+                _common.get_data_from_loc)
+            rtp_from_harvested:
+                Optional; If True, the subkey data is raised from
+                metadata.harvested rather than metadata.structured
+        """
         self.raise_to_parent_key = raise_to_parent_key
         self.rtp_from_harvested = rtp_from_harvested
 
@@ -693,7 +727,7 @@ class RaiseToParentMixin:
             basedata = metadata.structured
 
         if self.raise_to_parent_key is not None:
-            subkey_data = _aux.get_data_from_loc(
+            subkey_data = _common.get_data_from_loc(
                 basedata, self.raise_to_parent_key
             )
             parent_key = next(iter(self.raise_to_parent_key))
@@ -712,25 +746,27 @@ class UpdateFromKeyMixin:
     """
     Structurer Mixin to update metadata.structured, with the dict-data thats
     under specific keys. This moves that dict-data up to root level
-
-    Adds Arguments:
-        update_from_keys -- List of keys from which the data should update the
-        root metadata.structured data. E.g.:
-        [
-            'classification',
-            {'metadata': 'resource'}
-        ]
-        (for definition of keys, also see _aux.get_data_from_loc)
-
-        update_from_harvested -- Optional; If True, the data is
-        retrieved from metadata.harvested rather than
-        metadata.structured
     """
-
     def __init__(
             self, *args, update_from_keys: list = None,
             update_from_harvested: bool = False, **kwargs
             ):
+        """
+        Initializes the Mixin instance
+
+        Args:
+            update_from_keys:
+                Optional; List of keys from which the data should update the
+                root metadata.structured data. E.g.:
+                [
+                    'classification',
+                    {'metadata': 'resource'}
+                ]
+                (for definition of keys, also see _common.get_data_from_loc)
+            update_from_harvested:
+                Optional; If True, the data is retrieved from
+                metadata.harvested rather than metadata.structured
+        """
         if update_from_keys is None:
             self.update_from_keys = []
         else:
@@ -747,10 +783,12 @@ class UpdateFromKeyMixin:
             basedata = metadata.structured
 
         for key in self.update_from_keys:
-            dict_ = _aux.get_data_from_loc(basedata, key, pop=True, default={})
+            dict_ = _common.get_data_from_loc(
+                basedata, key, pop=True, default={}
+            )
             if isinstance(dict_, dict):
                 for prop_new_key, value in dict_.items():
-                    new_key = _aux.rename_if_duplicate(
+                    new_key = _common.rename_if_duplicate(
                         prop_new_key, metadata.structured
                     )
                     metadata.structured[new_key] = value
@@ -760,26 +798,29 @@ class UpdateFromKeyMixin:
 
 class OAIPMHMixin(CleanXMLMixin, KeyIdMixin, KeyUrlMixin):
     """
-    Base Structurer to use other OAI-PMH structurers
-
-    Adds Arguments:
-        metadata_loc -- Optional; Location where the base metadata data can be
-        found (see _aux.get_data_from_loc for format). Optional if the
-        _fill_structured(() function is overridden.
-
-        id_prefix -- Optional; The prefix(es) of the id that should be removed
-        for creating the url, if base_url is used
-
-        base_url -- (See BaseUrlMixin). This structurer can handle both a
-        url_key as well as a base_url (latter possibly in combination with
-        id_prefix)
+    Mixin with shared functionality for all OAI-PMH Harvesters
     """
-
     def __init__(
             self, *args, metadata_loc: Union[str, dict] = None,
             id_prefix: Union[list[str], str] = None, base_url: str = None,
             **kwargs
             ):
+        """
+        Initializes the Mixin instance
+
+        Args:
+            metadata_loc:
+                Optional; Location where the base metadata data can be
+                found (see _common.get_data_from_loc for format). Optional if
+                the _fill_structured(() function is overridden.
+            id_prefix:
+                Optional; The prefix(es) of the id that should be removed
+                for creating the url, if base_url is used
+            base_url:
+                (See BaseUrlMixin). This structurer can handle both a
+                url_key as well as a base_url (latter possibly in combination
+                with id_prefix)
+        """
         self.metadata_loc = metadata_loc
         self.base_url = base_url
 
@@ -803,7 +844,7 @@ class OAIPMHMixin(CleanXMLMixin, KeyIdMixin, KeyUrlMixin):
             metadata.is_filtered = True
             return
 
-        metadata.structured = _aux.get_data_from_loc(
+        metadata.structured = _common.get_data_from_loc(
             metadata.harvested, self.metadata_loc
         )
         metadata.structured.update(
@@ -841,7 +882,6 @@ class DataverseMixin(
         KeyIdMixin, BaseUrlMixin
         ):
     """Mixin for doing the basic tasks to structure Dataverse Data"""
-
     def __init__(self, *args, **kwargs):
         super().__init__(*args, id_key='global_id', **kwargs)
 
@@ -851,7 +891,6 @@ class JunarStructurer(
         KeyIdMixin, KeyUrlMixin, Structurer
         ):
     """Junar Data Structurer"""
-
     def __init__(self, *args, **kwargs):
         super().__init__(*args, id_key='guid', url_key='link', **kwargs)
 
@@ -863,7 +902,6 @@ class DataverseStructurer(DataverseMixin, Structurer):
 
 class DataverseSchemaOrgStructurer(DataverseMixin, FormatMixin, Structurer):
     """Structurer for the Dataverse schema.org format"""
-
     def __init__(self, *args, **kwargs):
         super().__init__(
             *args, format_key={'distribution': 'fileFormat'}, **kwargs
@@ -875,7 +913,6 @@ class CKANStructurer(
         RaiseKeyValueListMixin, FormatMixin, RaiseToParentMixin, Structurer
         ):
     """CKAN Data Structurer"""
-
     def __init__(self, *args, **kwargs):
         super().__init__(
             *args,
@@ -899,7 +936,6 @@ class SocrataStructurer(
         Structurer
         ):
     """Socrata Data Structurer"""
-
     def __init__(self, *args, **kwargs):
         super().__init__(
             *args,
@@ -931,7 +967,6 @@ class OAIDatacitePayloadStructurer(OAIPMHMixin, Structurer):
     'payload' -> 'resource' structure.
     See http://schema.datacite.org/oai/oai-1.0/oai.xsd
     """
-
     def __init__(self, *args, **kwargs):
         super().__init__(
             *args,
@@ -952,14 +987,20 @@ class OAIDataciteResourceStructurer(
     """
     Structurer for OAI-PMH data with 'metadata' --> 'resource' structure.
     See http://schema.datacite.org/meta/kernel-3/metadata.xsd
-
-    Adds Arguments:
-        keep_types -- Optional; Only if these types are found in the
-        entry, the entry is kept. This is an abstraction for the
-        KeyValueFilterMixin
     """
+    def __init__(self, *args, keep_types: list[str] = None, **kwargs):
+        """
+        Initializes the OAIDataciteResourceStructurer
 
-    def __init__(self, *args, keep_types: list = None, **kwargs):
+        This inherits the arguments from the OAIPMHMixin and base Structurer
+        classes, and adds:
+
+        Args:
+            keep_types:
+                Optional; Only if these types are found in the
+                entry, the entry is kept. This is an abstraction for the
+                KeyValueFilterMixin
+        """
         key_value_filter_options = None
         if keep_types is not None:
             key_value_filter_options = [
@@ -1030,16 +1071,22 @@ class OAIDCStructurer(KeyValueFilterMixin, OAIPMHMixin, Structurer):
     """
     Structurer for OAI-PMH data in the Dublin Core format
     (http://www.openarchives.org/OAI/2.0/oai_dc.xsd)
-
-    Adds Arguments:
-        keep_types -- Optional; Only if these types are found in the
-        entry, the entry is kept. This is an abstraction for the
-        KeyValueFilterMixin
     """
-
     def __init__(
-            self, *args, keep_types: list = None, **kwargs
+            self, *args, keep_types: list[str] = None, **kwargs
             ):
+        """
+        Initialize the OAIDCStructurer instance
+
+        This inherits the arguments from the OAIPMH Mixin and base Structurer
+        classes, and adds:
+
+        Args:
+            keep_types:
+                Optional; Only if these types are found in the
+                entry, the entry is kept. This is an abstraction for the
+                KeyValueFilterMixin
+        """
         key_value_filter_options = None
         if keep_types is not None:
             key_value_filter_options = [
@@ -1069,7 +1116,6 @@ class OAIISO19139Structurer(
     """
     Structurer for OAI-PMH data with 'metadata' --> 'MD_Metadata' structure.
     """
-
     def __init__(self, *args, **kwargs):
         super().__init__(
             *args,
@@ -1088,7 +1134,6 @@ class ArcGISOpenDataStructurer(KeyIdMixin, BaseUrlMixin, Structurer):
     """
     Structurer for data harvested from the ArcGIS Open Data API
     """
-
     def __init__(self, *args, **kwargs):
         super().__init__(
             *args, id_key='id', id_from_harvested=True, url_suffix_key='slug',
@@ -1096,7 +1141,7 @@ class ArcGISOpenDataStructurer(KeyIdMixin, BaseUrlMixin, Structurer):
             )
 
     def _fill_structured(self, metadata: ResourceMetadata):
-        metadata.structured = _aux.remove_nonetypes(
+        metadata.structured = _common.remove_nonetypes(
             metadata.harvested['attributes']
         )
 
@@ -1105,15 +1150,14 @@ class KnoemaDCATStructurer(KeyIdMixin, KeyUrlMixin, Structurer):
     """
     Structurer for metadata in the Knoema DCAT Format
     """
-
     def __init__(self, *args, **kwargs):
         super().__init__(
             *args, id_key='about', url_key='homepage', **kwargs
         )
 
     def _fill_structured(self, metadata: ResourceMetadata):
-        cleaned = _aux.remove_keys(metadata.harvested, '@datatype')
-        metadata.structured = _aux.clean_xml_metadata(
+        cleaned = _common.remove_keys(metadata.harvested, '@datatype')
+        metadata.structured = _common.clean_xml_metadata(
             cleaned, prefer_upper=True
         )
 
@@ -1122,7 +1166,6 @@ class OpenDataSoftStructurer(KeyIdMixin, BaseUrlMixin, Structurer):
     """
     Structurer for Open Data Soft metadata
     """
-
     def __init__(self, *args, **kwargs):
         super().__init__(
             *args, id_key='datasetid', id_from_harvested=True, **kwargs
@@ -1135,13 +1178,18 @@ class OpenDataSoftStructurer(KeyIdMixin, BaseUrlMixin, Structurer):
 class GeonodeStructurer(KeyIdMixin, BaseUrlMixin, Structurer):
     """
     Structurer for Geonode Data
-
-    Adds Arguments:
-        exclude_prefixes -- Datasets with these prefixes in their URL are
-        excluded
     """
-
     def __init__(self, *args, exclude_prefixes: list[str] = None, **kwargs):
+        """
+        Initializes the Geonodestructurer instance
+
+        Inherits all parameters from the base 'Structurer' class, and adds:
+
+        Args:
+            exclude_prefixes:
+                Optional; Datasets with these prefixes in their URL are
+                excluded
+        """
         self.exclude_prefixes = exclude_prefixes
         super().__init__(
             *args, id_key='id', url_suffix_key='detail_url',
@@ -1177,21 +1225,26 @@ class CSWStructurer(
         ):
     """
     Structurer for CSW data
-
-    Additional arguments:
-        base_url -- (Like with BaseUrlMixin)
-
-        reverse_corner_coordinates -- Optional; If True, the
-        corner coordinates are reversed
-
-        id_to_lower -- Optional; If true, the lowercase id is used for the
-        URL
     """
-
     def __init__(
             self, *args, base_url: str,
             reverse_corner_coordinates: bool = False,
-            id_to_lower: bool = False, **kwargs):
+            id_to_lower: bool = False, **kwargs
+            ):
+        """
+        Initializes the CSWStructurer instance
+
+        Inherits all arguments from the KeyValueFilterMixin, the
+        RemoveKeysMixin and base 'Structurer' classes, and adds:
+
+        Args:
+            base_url:
+                The base url used to construct the links to the resources
+            reverse_corner_coordinates:
+                Optional; If True, the corner coordinates are reversed
+            id_to_lower:
+                Optional; If true, the lowercase id is used for the URL
+        """
         self.base_url = base_url
         self.reverse_corner_coordinates = reverse_corner_coordinates
         self.id_to_lower = id_to_lower
@@ -1230,11 +1283,21 @@ class GMDStructurer(UpdateFromKeyMixin, FormatMixin, Structurer):
     """
     Structurer for data in the CSW GMD format
     """
-
     def __init__(
             self, *args, base_url: str,
             remove_ids_containing: list[str] = None, **kwargs
             ):
+        """
+        Initializes the GMDStructurer instance
+
+        inherits the arguments from the base 'Structurer' class and adds:
+
+        Args:
+            base_url:
+                The base url for references to the resources
+            remove_ids_containing:
+                Optional; Remove id's that contain any of these strings
+        """
         self.base_url = base_url
         self.remove_ids_containing = remove_ids_containing
         super().__init__(
@@ -1250,10 +1313,10 @@ class GMDStructurer(UpdateFromKeyMixin, FormatMixin, Structurer):
         )
 
     def _fill_structured(self, metadata: ResourceMetadata):
-        cleaned = _aux.remove_keys(
+        cleaned = _common.remove_keys(
             metadata.harvested, r'^@(type|(code(space|list)))$'
         )
-        metadata.structured = _aux.clean_xml_metadata(
+        metadata.structured = _common.clean_xml_metadata(
             cleaned, prefer_upper=True
         )
 
@@ -1316,7 +1379,6 @@ class DataOneStructurer(KeyIdMixin, BaseUrlMixin, Structurer):
     """
     Structurer for DataONE data
     """
-
     def __init__(self, *args, **kwargs):
         super().__init__(
             *args,
@@ -1352,13 +1414,18 @@ class SimpleStructurer(
         ):
     """
     Structure simple data formats
-
-    Adds Arguments:
-        remove_from_url -- Optional; If given this part is replaced in the URL
-        string
     """
-
     def __init__(self, *args, remove_from_url: str = None, **kwargs):
+        """
+        Initializes the SimpleStructurer Instance
+
+        Inherits all args from the KeyIdMixin, KeyUrlMixin, BaseUrlMixin,
+        RenameKeysMixin and base 'Structurer' class, and adds:
+
+        Args:
+            remove_from_url:
+                Optional; If given this part is replaced in the URL string
+        """
         self.remove_from_url = remove_from_url
         super().__init__(*args, **kwargs)
 
@@ -1375,8 +1442,17 @@ class DataGovINStructurer(KeyIdMixin, Structurer):
     """
     Structurer for data from Data.Gov.In
     """
-
     def __init__(self, *args, base_url: str, **kwargs):
+        """
+        Initializes the DataGovINStructurer instance
+
+        Inherits all arguments from the Structurer class, and adds:
+
+        Args:
+            base_url:
+                The base url to construct the urls pointing to resources on
+                the website
+        """
         super().__init__(*args, id_key='id', **kwargs)
         self.base_url = base_url.strip('/')
 
@@ -1392,7 +1468,6 @@ class ScienceBaseStructurer(KeyIdMixin, KeyUrlMixin, Structurer):
     """
     Structurer for ScienceBase data
     """
-
     def __init__(self, *args, **kwargs):
         super().__init__(
             *args,
@@ -1448,7 +1523,6 @@ class GeoplatformStructurer(KeyIdMixin, BaseUrlMixin, Structurer):
     """
     Structurer for Geoplatform.gov data
     """
-
     def __init__(self, *args, **kwargs):
         super().__init__(
             *args,
@@ -1461,7 +1535,6 @@ class ElasticSearchStructurer(KeyIdMixin, BaseUrlMixin, Structurer):
     """
     Structurer for ElasticSearch data
     """
-
     def __init__(self, *args, **kwargs):
         super().__init__(
             *args,
@@ -1480,7 +1553,6 @@ class InvenioStructurer(
     """
     Structurer for Invenio data
     """
-
     def __init__(self, *args, **kwargs):
         super().__init__(
             *args,
@@ -1492,9 +1564,11 @@ class InvenioStructurer(
 
 class NCEIStructurer(ElasticSearchStructurer):
     """
-    Adds '/html' to the url
-    """
+    Structurer for ncei.noaa.gov
 
+    This is basically the same as the ElasticSearchStructurer, and only adds
+    the '/html' suffix to the resource URL
+    """
     def __init__(self, *args, **kwargs):
         super().__init__(
             *args,
@@ -1530,7 +1604,6 @@ class RIFCSStructurer(OAIPMHMixin, Structurer):
     """
     Structure RIF CS Data from OAI-PMH endpoints
     """
-
     def _fill_structured(self, metadata: ResourceMetadata):
         """
         Override the default 'fill structured' of the OAIPMHMixin
@@ -1655,7 +1728,7 @@ class DcatXMLStructurer(
             )
 
     def _fill_structured(self, metadata: ResourceMetadata):
-        cleaned = _aux.clean_xml_metadata(
+        cleaned = _common.clean_xml_metadata(
             metadata.harvested, prefer_upper=True
         )
         metadata.structured = cleaned['Dataset']

@@ -1,11 +1,11 @@
 #!/bin/bash
-python3.9 -m venv test_temp_venv
-source ./test_temp_venv/bin/activate
+python3.9 -m venv .temp_venv
+source .temp_venv/bin/activate
 pip install wheel
 pip install ./packages/metadata_ingestion
 pip install pytest
 pytest
 ec=$?
 deactivate
-rm -r -f test_temp_venv
+rm -r -f .temp_venv
 exit $ec
