@@ -1,27 +1,31 @@
 # -*- coding: utf-8 -*-
 """
-ANALYZE SUB-module
+Analyze Sub-Module
 
-Contains functions to help analyze ingested metadata, to aid the setup of
-metadata translation
+Contains functions to help analyze ingested data, for example to check which
+fields are found, and what the range of data is that these fields contain
 """
-import os
+from pathlib import Path
 import re
 import math
+from typing import Any, Union
 
-from metadata_ingestion import dataio, _loadcfg, structure
+from metadata_ingestion import dataio, _loadcfg, structurers, resource
 
 CALCULATE_LEN_FOR = set(['list', 'dict'])
 
 
-def _init_analysis_results(platform_id=None):
+def _init_analysis_results(source_id: str = None) -> dict:
     """
-    Initialize the analysis results for a specific platform_id
+    Creates the empty analysis results dictionary
+
+    Args:
+        source_id: The id of the platform to create a results dictionary for
     """
-    if platform_id is not None:
+    if source_id is not None:
         analysis_results = {
             "full_entries": {
-                platform_id: {}
+                source_id: {}
             },
             "metadata": {}
         }
@@ -34,9 +38,24 @@ def _init_analysis_results(platform_id=None):
     return analysis_results
 
 
-def _init_dtype_data(dtype_name, value, full_entry_ref):
+def _init_dtype_data(
+        dtype_name: str, value: Any, full_entry_ref: dict
+        ) -> dict:
     """
-    Initialize the key-data for a specific data type
+    Initializes the the result data for a specific data type
+
+    Args:
+        dtype_name:
+            The data type name, e.g. 'str', 'dict' etc.
+        value:
+            The initial value that was found is added as both extremes (min
+            size & max size) until more data is analyzed
+        full_entry_ref:
+            A reference to the entry where the value was taken from, with the
+            source id as a key, and the index of the entry as a value
+
+    Returns:
+        Initial dictionary with data for the given data type for a field
     """
     samples_keyname = '{}_samples'.format(dtype_name)
     strfd_len = len(str(value))
@@ -62,7 +81,21 @@ def _init_dtype_data(dtype_name, value, full_entry_ref):
 
 def _init_key_data(dtype_name, value, full_entry_ref):
     """
-    Initialize the count and samples for a new key
+    Initializes the count and samples for a new key
+
+    Args:
+        dtype_name:
+            The data type name, e.g. 'str', 'dict' etc.
+        value:
+            The initial value that was found is added as both extremes (min
+            size & max size) until more data is analyzed
+        full_entry_ref:
+            A reference to the entry where the value was taken from, with the
+            source id as a key, and the index of the entry as a value
+
+    Returns:
+        Initial dictionary with data for the given data type for a field and
+        count set to 1
     """
 
     key_data = {'count': 1}
@@ -72,11 +105,28 @@ def _init_key_data(dtype_name, value, full_entry_ref):
     return key_data
 
 
-def _update_dtype_data(dtype_data, dtype_name, value, full_entry_ref):
+def _update_dtype_data(
+        dtype_data: dict, dtype_name: str, value: Any, full_entry_ref: dict
+        ) -> bool:
     """
     Update the samples for the dtype, in case the value is shorter or longer
     than previously scanned values. Returns 'True' in case something is updated
-    or 'False' in case nothing has changed
+    or 'False' in case nothing has changed.
+
+    Args:
+        dtype_data:
+            The data to update (initialized using the _init_dtype_data
+            function)
+        dtype_name:
+            The data type name, e.g. 'str', 'dict' etc.
+        value:
+            The value to update the data with
+        full_entry_ref:
+            A reference to the entry where the value was taken from, with the
+            source id as a key, and the index of the entry as a value
+
+    Returns:
+        Whether the 'dtype_data' variable was updated or not
     """
     updated = False
     strfd_len = len(str(value))
@@ -110,10 +160,26 @@ def _update_dtype_data(dtype_data, dtype_name, value, full_entry_ref):
     return updated
 
 
-def _update_analysis_results(analysis_results, key, value, full_entry_ref):
+def _update_analysis_results(
+        analysis_results: dict, key: str, value: Any, full_entry_ref: dict
+        ) -> bool:
     """
     Update the analysis results, with the given key-value pair. In case
     something is updated, it returns 'True', else 'False'
+
+    Args:
+        analysis_results:
+            The overall analysis results, updated in-place
+        key:
+            The key under which the value is found
+        value:
+            The data found under the given key
+        full_entry_ref:
+            A reference to the entry where the value was taken from, with the
+            source id as a key, and the index of the entry as a value
+
+    Returns:
+        Whether the 'analysis_results' variable was updated or not
     """
     dtype_name = type(value).__name__
     samples_keyname = '{}_samples'.format(dtype_name)
@@ -141,10 +207,17 @@ def _update_analysis_results(analysis_results, key, value, full_entry_ref):
     return updated
 
 
-def _remove_count_below(analysis_results, min_count):
+def _remove_count_below(analysis_results: dict, min_count: int):
     """
     Removes all keys from the analysis results, if they have a count lower than
     min_count
+
+    Args:
+        analysis_results:
+            The overall analysis results data
+        min_count:
+            If keys lower than this count are in the analysis_results, their
+            data is removed
     """
     remove_keys = [k for k, v in analysis_results['metadata'].items() if
                    v['count'] < min_count]
@@ -153,9 +226,16 @@ def _remove_count_below(analysis_results, min_count):
         del analysis_results['metadata'][key]
 
 
-def _clean_unreferenced_entries(analysis_results):
+def _clean_unreferenced_entries(analysis_results: dict):
     """
-    Clean unreferenced data under the 'full_entries' key
+    Cleans unreferenced data under the 'full_entries' key
+
+    Unreferenced entries, are entries that do not have any key samples under
+    the 'metadata' section
+
+    Args:
+        analysis_results:
+            The data to clean unreferenced entries from (Edited in-place)
     """
     # Collect references per portal:
     referenced = {}
@@ -165,10 +245,10 @@ def _clean_unreferenced_entries(analysis_results):
                 for ssk, ssv in sv.items():
                     if 'refs' in ssk:
                         for entry_ref in ssv:
-                            platform_id, ind_ = next(iter(entry_ref.items()))
-                            if platform_id not in referenced:
-                                referenced[platform_id] = set()
-                            referenced[platform_id].add(ind_)
+                            source_id, ind_ = next(iter(entry_ref.items()))
+                            if source_id not in referenced:
+                                referenced[source_id] = set()
+                            referenced[source_id].add(ind_)
 
     # Delete unreferenced portals:
     portals = set(analysis_results['full_entries'].keys())
@@ -186,51 +266,54 @@ def _clean_unreferenced_entries(analysis_results):
             del analysis_results['full_entries'][portal_id][ind_]
 
 
-def single_file(in_fileloc, structure_data=False, out_folder=None,
-                load_first=None, exclude_indices=None, min_count=None):
+def single_file(
+        in_fileloc: Union[str, Path], structure_data: bool = False,
+        out_folder: Union[str, Path] = None, load_first: int = None,
+        exclude_indices: list[int] = None, min_count: int = None
+        ) -> Union[None, dict]:
     """
     Analyze the harvested raw data from in a single json-lines file
 
     Arguments:
-        in_fileloc --- str: The location of the input file. From this fileloc
-        it tries to derive the platform id
-
-        structure_data --- bool: Whether or not to structure the data before
-        analysis
-
-        out_folder=None --- str: Output location. If defined, a json file with
-        the analysis results is stored here
-
-        load_first=None --- int: When defined, only this many lines from the
-        beginning of the files are analyzed
-
-        exclude_indices=None --- list[int]: When defined, these indices will
-        not be considered in the analysis
-
-        min_count=None --- int: When defined, keys that are in the data less
-        than this, will be filtered from the output data
+        in_fileloc:
+            The location of the input file. From this fileloc it tries to
+            derive the platform id
+        structure_data:
+            Whether or not to structure the data before analysis
+        out_folder:
+            Output location. If defined, a json file with the analysis results
+            is stored here
+        load_first:
+            When defined, only this many lines from the beginning of the files
+            are analyzed
+        exclude_indices:
+            When defined, these indices will not be considered in the analysis
+        min_count:
+            When defined, keys that are in the data less than this, will be
+            filtered from the output data
 
     Returns:
-        dict --- The analysis results
-
-    Output:
-        json file --- The analysis results are saved, in case 'in_folder' is
-        defined
+        (In case out_folder = None) The analysis results
     """
-    filename = os.path.basename(in_fileloc)
+    filename = Path(in_fileloc).name
 
     # Get id from filename
     re_id = re.match(r'(^.*)_', filename)
-    platform_id = re_id.group(1)
+    source_id = re_id.group(1)
 
     # Lookup config for id:
     sources = _loadcfg.sources()
-    match = [s for s in sources if s['id'] == platform_id]
+    match = [s for s in sources if s['id'] == source_id]
     if match == 0:
         raise ValueError('Platform id not found in sources.json')
     sdata = match[0]
 
-    analysis_results = _init_analysis_results(platform_id)
+    analysis_results = _init_analysis_results(source_id)
+
+    if structure_data:
+        structurer = getattr(structurers, sdata['structurer'])(
+            sdata['id'], **sdata['structurer_kwargs']
+        )
 
     # Analyze key/value pairs
     for ind_, entry in enumerate(dataio.iterate_jsonlines(in_fileloc)):
@@ -240,19 +323,23 @@ def single_file(in_fileloc, structure_data=False, out_folder=None,
             continue
         add_to_full_entries = False
         struc_entry = entry
-        if structure_data is not None:
-            struc_entry = structure.single_entry(entry,
-                                                 sdata['data_format'],
-                                                 **sdata['structurer_kwargs'])
+        if structure_data:
+            metadata = resource.ResourceMetadata(entry)
+            structurer.structure(metadata)
+            if not metadata.is_filtered:
+                struc_entry = metadata.structured
+            else:
+                continue
+
         for k, v in struc_entry.items():
-            entry_ref = {platform_id: str(ind_)}
+            entry_ref = {source_id: str(ind_)}
             updated = _update_analysis_results(analysis_results, k, v,
                                                entry_ref)
             if updated:
                 add_to_full_entries = True
 
         if add_to_full_entries:
-            analysis_results['full_entries'][platform_id][str(ind_)] =\
+            analysis_results['full_entries'][source_id][str(ind_)] =\
                 struc_entry
 
     if min_count is not None:
@@ -263,22 +350,38 @@ def single_file(in_fileloc, structure_data=False, out_folder=None,
 
     # Write to folder, when requested
     if out_folder:
-        out_fn = 'analysis_' + filename
-        out_fileloc = os.path.join(out_folder, out_fn)
+        out_fn = Path(in_fileloc).stem + '_analysis.json'
+        out_fileloc = Path(out_folder, out_fn)
         dataio.savejson(analysis_results, out_fileloc)
 
     return analysis_results
 
 
-def merge_to_examples(in_dir, out_fileloc=None, min_count=None):
+def merge_to_examples(
+        in_dir: Union[Path, str], out_fileloc: Union[Path, str] = None,
+        min_count: int = None
+        ) -> Union[None, dict]:
     """
     Merge all analysis result files in a directory, to one file containing all
     examples in the files
+
+    Args:
+        in_dir:
+            The directory from which all .json files are used for merging
+        out_fileloc:
+            Optional; The path to save the merged data
+        min_count:
+            Optional; Do not include keys in the data that occur less than this
+            amount in the combined data
+
+    Returns:
+        (If no output_loc is specified) The merged data
     """
     merged_data = _init_analysis_results()
 
-    all_json_files = [os.path.join(in_dir, fn) for fn in os.listdir(in_dir) if
-                      fn.endswith('.json')]
+    in_dir = Path(in_dir)
+
+    all_json_files = [fp for fp in in_dir.iterdir() if fp.suffix == '.json']
 
     for fileloc in all_json_files:
         analysis_data = dataio.loadjson(fileloc)
@@ -334,7 +437,7 @@ def merge_to_examples(in_dir, out_fileloc=None, min_count=None):
     return merged_data
 
 
-def _preferred_to_new_inds(preferred_indices):
+def _preferred_to_new_inds(preferred_indices: list[int]) -> list[int]:
     """
     Uses a list of preferred indices, and investigates which index each one
     should really get in a list that is 1 smaller. Exports the index of the old
@@ -361,21 +464,30 @@ def _preferred_to_new_inds(preferred_indices):
     return new_inds
 
 
-def data_samples_for_key(in_fileloc, keyname, data_format=None,
-                         samples=10):
+def data_samples_for_key(
+        in_fileloc: Union[Path, str], keyname: str, samples: int = 10
+        ) -> tuple[list[dict], list[int], list[dict]]:
     """
     Generate examples for a key, from a json-lines file
 
+    Args:
+        in_fileloc:
+            The location of the input json-lines file
+        keyname:
+            The key to investigate
+        samples:
+            The number of samples requested
+
     Returns:
-        (key_samples, sample_indices, full_entries)
+        (1) List of data samples, (2) List with the indices of the given
+        samples and (3) the full-entries from which the given samples were
+        extracted
     """
     data_samples = []
     data_inds = []
     full_entries = []
     for ind_, dat in enumerate(dataio.iterate_jsonlines(in_fileloc)):
         struc_entry = dat
-        if data_format is not None:
-            struc_entry = structure.single_entry(dat, data_format)
         keydata = struc_entry.get(keyname)
         if keydata is not None:
             if len(data_samples) < samples:
@@ -403,110 +515,23 @@ def data_samples_for_key(in_fileloc, keyname, data_format=None,
     return data_samples, data_inds, full_entries
 
 
-def load_keys_for_tkey(tkeyname):
-    """
-    Returns a list of key names for the given translated key (key in the
-    new metadata system)
-    """
-    key_mapping = _loadcfg.translation()
-
-    # Reverse the mapping
-    keys = []
-    for key, tkeys in key_mapping.items():
-        if tkeyname in tkeys:
-            keys.append(key)
-
-    return keys
-
-
-def single_file_tkey_samples(in_fileloc, tkeyname, data_format=None,
-                             samples=10):
-    """
-    Generate examples for a translated key from a single file with harvested
-    data. Uses the translation file to find input keys belonging to a specific
-    output key, and gives samples of these relevant keys.
-
-    Returns:
-        (key_samples, sample_indices, full_entries)
-    """
-    keys = load_keys_for_tkey(tkeyname)
-    data_samples = []
-    data_inds = []
-    full_entries = []
-    for ind_, dat in enumerate(dataio.iterate_jsonlines(in_fileloc)):
-        struc_entry = dat
-        if data_format is not None:
-            struc_entry = structure.single_entry(dat, data_format)
-        pload = {}
-        for keyname in keys:
-            keydata = struc_entry.get(keyname)
-            if keydata is not None:
-                pload[keyname] = keydata
-
-        if pload != []:
-            if len(data_samples) < samples:
-                data_samples.append(pload)
-                data_inds.append(ind_)
-                full_entries.append(struc_entry)
-            else:
-                # Check prefered inidices of current stack:
-                prefr_sample_indices = [math.ceil(((oind_ + 1) / (ind_ + 1))
-                                        * samples) - 1 for oind_ in data_inds]
-
-                # If none of the previous samples is allocated to the last spot
-                # insert a new one, and reorder
-                if prefr_sample_indices[-1] != (samples-1):
-                    keep_indices = _preferred_to_new_inds(prefr_sample_indices)
-
-                    data_samples = [data_samples[i] for i in keep_indices]
-                    data_inds = [data_inds[i] for i in keep_indices]
-                    full_entries = [full_entries[i] for i in keep_indices]
-
-                    data_samples.append(pload)
-                    data_inds.append(ind_)
-                    full_entries.append(struc_entry)
-
-    return data_samples, full_entries
-
-
-def analysis_file_tkey_samples(in_fileloc, tkeyname):
-    """
-    Generate examples for a translated key from structured full_entries in an
-    analysis file. Uses the translation file to find input keys belonging to a
-    specific output key, and gives samples of these relevant keys.
-
-    Returns:
-        (data_samples, full_entries)
-    """
-    keys = load_keys_for_tkey(tkeyname)
-    data_samples = []
-    full_entries = []
-
-    analysis_data = dataio.loadjson(in_fileloc)
-
-    for portal, entries in analysis_data['full_entries'].items():
-        for ind_, struc_entry in entries.items():
-            pload = {}
-            for keyname in keys:
-                keydata = struc_entry.get(keyname)
-                if keydata is not None:
-                    pload[keyname] = keydata
-
-            if pload != {}:
-                data_samples.append(pload)
-                struc_entry['_dportal_id_info'] = {portal: ind_}
-                full_entries.append(struc_entry)
-
-    return data_samples, full_entries
-
-
-def analysis_file_key_samples(in_fileloc, keyname):
+def analysis_file_key_samples(
+        in_fileloc: Union[Path, str], keyname: str
+        ) -> tuple[list[dict], list[int], list[dict]]:
     """
     Generate examples for a original key from structured full_entries in an
     analysis file.
 
+    Args:
+        in_fileloc:
+            The location of the json file with analysis results
+        keyname:
+            The key to investigate
+
     Returns:
-        (key_samples, sample_indices, full_entries)
+        (1) List of data samples, (2) List with the indices of the given
+        samples and (3) the full-entries from which the given samples were
+        extracted
     """
     data_samples = []
     full_entries = []

@@ -277,7 +277,7 @@ class OrderedTranslators:
 
     def _add_independent_translator(
             self, dependent_translators_item: FieldTranslator
-        ):
+            ):
         """
         Add one of the dependent translators to the ordered translators. Takes
         an item (tuple) from the dependent translators, and adds it to the
