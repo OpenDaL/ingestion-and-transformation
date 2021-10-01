@@ -7,13 +7,17 @@ from pathlib import Path
 import json
 import re
 import argparse
+from typing import Union
 
 filename_regex = re.compile(
     r'(.*)_\d{4}-\d{2}-\d{2}T\d{2}.\d{2}.\d{2}Z?\.(jl|jsonl)$'
 )
 
 
-def is_valid_folder(parser, dirloc):
+def is_valid_folder(parser: argparse.ArgumentParser, dirloc: str) -> Path:
+    """
+    Check if the provided dirloc is valid
+    """
     path = Path(dirloc)
     if not path.is_dir():
         parser.error('The directory {} does not exist'.format(dirloc))
@@ -21,7 +25,10 @@ def is_valid_folder(parser, dirloc):
         return path
 
 
-def count_lines(input_loc):
+def count_lines(input_loc: Union[Path, str]) -> int:
+    """
+    Count the lines in the given file
+    """
     count = 0
     with open(input_loc, 'r', encoding='utf8') as linesfile:
         for line in linesfile:
@@ -33,8 +40,10 @@ def count_lines(input_loc):
 if __name__ == "__main__":
     # Parse the script arguments
     aparser = argparse.ArgumentParser(
-        description=("Create a statistics file (stats.json) for a directory"
-                     " with scraped or processed data")
+        description=(
+            "Create a statistics file (stats.json) for a directory"
+            " with scraped or processed data"
+        )
     )
     aparser.add_argument(
         "folder",

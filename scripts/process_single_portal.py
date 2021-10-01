@@ -7,6 +7,7 @@ import re
 from pathlib import Path
 import time
 import argparse
+from typing import Union, Callable
 
 from metadata_ingestion import (
     structurers, translators, post_processors, resource, dataio
@@ -17,7 +18,8 @@ filename_regex = re.compile(
 )
 
 
-def is_valid_folder(parser, dirloc):
+def is_valid_folder(parser: argparse.ArgumentParser, dirloc: str) -> Path:
+    """Check if the provided folder is valid"""
     path = Path(dirloc)
     if not path.is_dir():
         parser.error('The directory {} does not exist'.format(dirloc))
@@ -25,7 +27,8 @@ def is_valid_folder(parser, dirloc):
         return path
 
 
-def is_valid_file(parser, fileloc):
+def is_valid_file(parser: argparse.ArgumentParser, fileloc: str) -> Path:
+    """Check if the provided fileloc is valid"""
     path = Path(fileloc)
     if not path.is_file():
         parser.error('The file {} does not exist'.format(fileloc))
@@ -33,7 +36,10 @@ def is_valid_file(parser, fileloc):
         return path
 
 
-def is_valid_output_file(parser, fileloc):
+def is_valid_output_file(
+        parser: argparse.ArgumentParser, fileloc: str
+        ) -> Path:
+    """Check if the selected output location is in an existing directory"""
     path = Path(fileloc)
     if not path.absolute().parent.is_dir():
         parser.error('Output file directory does not exist')
@@ -42,7 +48,8 @@ def is_valid_output_file(parser, fileloc):
 
 
 def process_data_file(
-        input_loc, output_dir, default_steps, store_empty=False
+        input_loc: Union[Path, str], output_dir: Union[Path, str],
+        default_steps: list[Callable], store_empty: bool = False
         ):
     """
     Processes a single file of data, halts on errors

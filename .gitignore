@@ -6,3 +6,4 @@ dist/
 .pytest_cache/
 .vscode
 .env
+scripts/es_upload.log

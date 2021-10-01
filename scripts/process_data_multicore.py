@@ -11,9 +11,10 @@ import argparse
 from pathlib import Path
 import logging
 from logging import handlers
+from typing import TextIO
 
 from metadata_ingestion import (
-    structurers, translators, post_processors, resource
+    structurers, translators, post_processors, resource, dataio
 )
 
 MEMORIZE = 5000
@@ -27,8 +28,10 @@ filename_regex = re.compile(
 
 class StructurerCache():
     """
-    Cache structurers so they do not need to be constructed for each
-    item
+    Cache to store initialized structurers
+
+    Storing them prevents having to construct new objects for the processing
+    of each item
     """
     def __init__(self) -> None:
         self._structurers = {}
@@ -45,7 +48,8 @@ class StructurerCache():
             return self._structurers[source_id]
 
 
-def is_valid_folder(parser, dirloc):
+def is_valid_folder(parser: argparse.ArgumentParser, dirloc: str) -> Path:
+    """Check if the provided folder is valid"""
     path = Path(dirloc)
     if not path.is_dir():
         parser.error('The directory {} does not exist'.format(dirloc))
@@ -53,7 +57,10 @@ def is_valid_folder(parser, dirloc):
         return path
 
 
-def is_valid_processcount(parser, nprocesses):
+def is_valid_processcount(
+        parser: argparse.ArgumentParser, nprocesses: str
+        ) -> int:
+    """Parse and validate the provided number of processes"""
     nprocesses = int(nprocesses)
     if nprocesses < 3:
         parser.error('nprocesses should be more than 2')
@@ -61,7 +68,7 @@ def is_valid_processcount(parser, nprocesses):
         return nprocesses
 
 
-def get_process_logger(logging_queue):
+def get_process_logger(logging_queue: multiprocessing.Queue) -> logging.Logger:
     """
     Get the root logger for this process, all set-up to log to the given
     logging queue using the QueueHandler
@@ -76,7 +83,10 @@ def get_process_logger(logging_queue):
     return logger
 
 
-def process_data(inqueue, outqueue, logqueue):
+def process_data(
+        inqueue: multiprocessing.Queue, outqueue: multiprocessing.Queue,
+        logqueue: multiprocessing.Queue
+        ):
     """
     Process the list of data
     """
@@ -134,32 +144,25 @@ def process_data(inqueue, outqueue, logqueue):
         })
 
 
-def iterate_jsonlines(fileloc):
-    """
-    Generator that returns the data from lines of a json-lines file
-    """
-    with open(fileloc, 'r', encoding='utf8') as jsonlinesfile:
-        for line in jsonlinesfile:
-            yield json.loads(line)
-
-
 class FileHandles:
     """
     Object that manages filehandles, that new ones are created, old ones are
     closed, and also tracks the count for a filehandle
-
-    Arguments:
-        logger -- This logger is used for logging the closing and opening of
-        files
     """
-
     def __init__(self, *, logger: logging.Logger):
+        """
+        Initializes the FileHandles instance
+
+        Args:
+            logger:
+                The logger to log closing and opening of filehandles to
+        """
         self._data = {}
         self.maxopen = 20
         self.previously_closed = set()
         self.logger = logger
 
-    def _addfile(self, filepath):
+    def _addfile(self, filepath: Path):
         """Add a file to the filehandles cache"""
         if len(self._data) == self.maxopen:
             oldestkey = list(self._data.keys())[0]
@@ -178,7 +181,7 @@ class FileHandles:
             'count': 0
         }
 
-    def get(self, filepath):
+    def get(self, filepath: Path) -> TextIO:
         """
         Get the filehandle data (dict) for the given filepath (pathlib.Path).
         """
@@ -189,7 +192,7 @@ class FileHandles:
             self._addfile(filepath)
             return self._data[name]
 
-    def _closefile(self, name):
+    def _closefile(self, name: str):
         """
         Close the file with the given name
         """
@@ -212,7 +215,9 @@ class FileHandles:
             self._closefile(name)
 
 
-def write_results(outqueue, logqueue):
+def write_results(
+        outqueue: multiprocessing.Queue, logqueue: multiprocessing.Queue
+        ):
     """
     Write the results that are on the outqueue to a file
     """
@@ -351,7 +356,7 @@ if __name__ == '__main__':
             # maxsize, it will block if enough data is read
             batch = []
             linenr = 0
-            for hdat in iterate_jsonlines(path):
+            for hdat in dataio.iterate_jsonlines(path):
                 linenr += 1
                 batch.append((linenr, hdat))
                 if len(batch) == batch_size:
@@ -384,7 +389,8 @@ if __name__ == '__main__':
         for w in workers:
             input_queue.put({'close': True})
 
-        # After everyting has been pushed, wait for the worker-processes to join
+        # After everyting has been pushed, wait for the worker-processes to
+        # join
         for w in workers:
             w.join()
 

@@ -23,7 +23,8 @@ filename_regex = re.compile(
 )
 
 
-def is_valid_folder(parser, dirloc):
+def is_valid_folder(parser: argparse.ArgumentParser, dirloc: str) -> Path:
+    """Check if the provided directory is valid"""
     path = Path(dirloc)
     if not path.is_dir():
         parser.error('The directory {} does not exist'.format(dirloc))
@@ -31,7 +32,8 @@ def is_valid_folder(parser, dirloc):
         return path
 
 
-def is_valid_file(parser, fileloc):
+def is_valid_file(parser: argparse.ArgumentParser, fileloc: str) -> Path:
+    """Check if the given file loc is valid"""
     path = Path(fileloc)
     if not path.is_file():
         parser.error('The file {} does not exist'.format(fileloc))
@@ -39,7 +41,10 @@ def is_valid_file(parser, fileloc):
         return path
 
 
-def is_valid_output_file(parser, fileloc):
+def is_valid_output_file(
+        parser: argparse.ArgumentParser, fileloc: str
+        ) -> Path:
+    """Check if the given output location is in an existing directory"""
     path = Path(fileloc)
     if not path.absolute().parent.is_dir():
         parser.error('Output file directory does not exist')
@@ -47,9 +52,27 @@ def is_valid_output_file(parser, fileloc):
         return path
 
 
-def process_data(in_data, pinfo, out_loc, method, logger, structurer):
+def process_data(
+        in_data: list[dict], pinfo: dict, out_loc: Path, method: str,
+        logger: logging.Logger, structurer: structurers.Structurer
+        ):
     """
     Process the list of data
+
+    Args:
+        in_data:
+            The list of data to process
+        pinfo:
+            Dictionary to track the progress
+        out_loc:
+            The location to store the processed data
+        method:
+            The write method (as provided to the 'open' function) for the
+            output
+        logger:
+            The logger to log the progress on
+        structurer:
+            The structurer object to use to structure the data
     """
     global last_log_time
 
@@ -90,9 +113,9 @@ def process_data(in_data, pinfo, out_loc, method, logger, structurer):
             )
 
 
-def process_data_file(input_loc, output_dir):
+def process_data_file(input_loc: Path, output_dir: Path):
     """
-    Processes a single file of data, halts on errors
+    Processes a single file of data, halt on errors
     """
     filename = os.path.split(input_loc)[-1]
     fn_id = filename_regex.match(filename).group(1)
@@ -123,10 +146,15 @@ def process_data_file(input_loc, output_dir):
             process_data(
                     in_data, process_info, out_loc, method, logger, structurer
             )
-        logger.info('finished processing, processed {} lines, yielding {} results'.format(
-            process_info['total_processed'],
-            process_info['result_count']
-        ))
+        logger.info(
+            (
+                'finished processing, processed {} lines'
+                ', yielding {} results'
+            ).format(
+                process_info['total_processed'],
+                process_info['result_count']
+            )
+        )
 
 
 if __name__ == '__main__':

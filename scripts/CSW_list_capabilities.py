@@ -5,11 +5,12 @@ Script that prints the capabilities of a CSW service for the relevant elements
 import requests
 import xmltodict
 import argparse
+from typing import Any
 
-from metadata_ingestion._aux import remove_xml_namespaces
+from metadata_ingestion._common import remove_xml_namespaces
 
 
-def get_cleaned_xml(str_):
+def get_cleaned_xml(str_) -> Any:
     """
     Convert XML string to cleaned data in a dict
     """
@@ -34,8 +35,11 @@ if __name__ == "__main__":
     response = requests.get(getcp_url)
     xml_data = get_cleaned_xml(response.text)
     print('CSW Version: {}'.format(xml_data['Capabilities']['@version']))
-    operations_data = xml_data['Capabilities']['OperationsMetadata']['Operation']
-    get_records_data = [o for o in operations_data if o['@name'] == 'GetRecords'][0]['Parameter']
+    operations_data =\
+        xml_data['Capabilities']['OperationsMetadata']['Operation']
+    get_records_data = [
+        o for o in operations_data if o['@name'] == 'GetRecords'
+    ][0]['Parameter']
     print('GetRecords supports the following parameters: \n\n')
     for parameter in get_records_data:
         print('{}: {}'.format(parameter['@name'], parameter['Value']) + '\n')

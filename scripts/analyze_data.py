@@ -9,17 +9,15 @@ from pathlib import Path
 from metadata_ingestion import analyze, dataio
 
 
-def is_valid_folder(parser, dirloc):
+def is_valid_folder(parser: argparse.ArgumentParser, dirloc: str):
+    """
+    Checks if the provided dicloc is valid
+    """
     path = Path(dirloc)
     if not path.is_dir():
         parser.error('The directory {} does not exist'.format(dirloc))
     else:
         return path
-
-
-def analyze_file(fileloc, structure_data=False):
-    analyze.single_file(fileloc, structure_data=structure_data,
-                        out_folder=out_folder)
 
 
 if __name__ == '__main__':
@@ -69,7 +67,9 @@ if __name__ == '__main__':
     all_files = sorted(dataio.list_files(in_folder, 'jsonl'))
     nr_of_files = len(all_files)
     for ind_, file_loc in enumerate(all_files):
-        analyze_file(file_loc, structure_data=args.structure)
+        analyze.single_file(
+            file_loc, structure_data=args.structure, out_folder=out_folder
+        )
         logger.info('Processed {} of {}'.format(ind_ + 1, nr_of_files))
 
     if args.merge_results:

@@ -6,9 +6,13 @@ are detected.
 from pathlib import Path
 import json
 import argparse
+from typing import Union
 
 
-def is_valid_json_file(parser, fileloc):
+def is_valid_json_file(parser: argparse.ArgumentParser, fileloc: str):
+    """
+    Checks if the given fileloc is a valid JSON file
+    """
     path = Path(fileloc)
     if not path.is_file():
         parser.error('The file {} does not exist'.format(fileloc))
@@ -18,7 +22,7 @@ def is_valid_json_file(parser, fileloc):
         return path
 
 
-def load_json(file_loc):
+def load_json(file_loc: Union[Path, str]):
     with open(file_loc, 'r', encoding='utf8') as jsonfile:
         return json.load(jsonfile)
 

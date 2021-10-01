@@ -8,7 +8,7 @@ import argparse
 
 if __name__ == "__main__":
     aparser = argparse.ArgumentParser(
-        description="Delete an ES index"
+        description="Delete an ES index that was previously set to read-only"
     )
     aparser.add_argument(
         "host",

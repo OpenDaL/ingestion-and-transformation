@@ -14,7 +14,10 @@ from metadata_ingestion import harvesters
 sources = _loadcfg.sources()
 
 
-def is_valid_folder(parser, dirloc):
+def is_valid_folder(parser: argparse.ArgumentParser, dirloc: str) -> Path:
+    """
+    Check if the given location is a valid folder
+    """
     path = Path(dirloc)
     if not path.is_dir():
         parser.error('The directory {} does not exist'.format(dirloc))
@@ -22,15 +25,21 @@ def is_valid_folder(parser, dirloc):
         return path
 
 
-def is_valid_portal_id(parser, portal_id):
-    portal_list = [s for s in sources if s['id'] == portal_id]
+def is_valid_source_id(parser: argparse.ArgumentParser, source_id: str) -> str:
+    """
+    Check if the provided source_id is valid
+    """
+    portal_list = [s for s in sources if s['id'] == source_id]
     if len(portal_list) == 1:
-        return portal_id
+        return source_id
     else:
-        parser.error('The portal id {} does not exist'.format(portal_id))
+        parser.error('The portal id {} does not exist'.format(source_id))
 
 
-def is_valid_log_level(parser, log_level):
+def is_valid_log_level(parser: argparse.ArgumentParser, log_level: str) -> str:
+    """
+    Check if the provided log level is valid
+    """
     log_levels = ['DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL']
     if log_level in log_levels:
         return log_level
@@ -41,18 +50,15 @@ def is_valid_log_level(parser, log_level):
         )
 
 
-async def main(h):
-    await h.run()
-
 if __name__ == "__main__":
     # Parse the script arguments
     aparser = argparse.ArgumentParser(
         description=("Harvest the data of a single portal")
     )
     aparser.add_argument(
-        "portal_id",
+        "source_id",
         help="The unique identifier of the portal to harvest data from",
-        type=lambda x: is_valid_portal_id(aparser, x)
+        type=lambda x: is_valid_source_id(aparser, x)
     )
     aparser.add_argument(
         "folder",
@@ -69,13 +75,13 @@ if __name__ == "__main__":
 
     # Get arguments
     args = aparser.parse_args()
-    portal_id = args.portal_id
+    source_id = args.source_id
     portal_folder = args.folder
 
-    portal_metadata = [s for s in sources if s['id'] == portal_id][0]
+    portal_metadata = [s for s in sources if s['id'] == source_id][0]
 
     harvester = getattr(harvesters, portal_metadata['harvester'])(
-        id_=portal_id,
+        id_=source_id,
         output_path=portal_folder,
         **portal_metadata['harvester_kwargs']
     )
@@ -95,4 +101,4 @@ if __name__ == "__main__":
     logger.addHandler(handler)
 
     # Run the harvester
-    asyncio.run(main(harvester))
+    asyncio.run(harvester.run())

@@ -10,19 +10,18 @@ from logging import handlers
 from pathlib import Path
 import getpass
 import argparse
+from typing import Union, Any
 
 import requests
 
 INDEX_NAME = 'resource_metadata'
-DEF_MAPPING_LOC = '/mnt/data_volume/dataclopedia/repositories/ingestion-configuration/elasticsearch/mapping_v1.2.json'
-DEF_LOG_LOC = '/data/logs/upload_to_ES.log'
 SEND_PER = 500
 HEADERS = {'content-type': 'application/json'}
 
 rsession = requests.session()
 
 
-def is_valid_folder(parser, dirloc):
+def is_valid_folder(parser: argparse.ArgumentParser, dirloc: str) -> Path:
     """
     Validate if an input argument is a existing folder
     """
@@ -33,7 +32,7 @@ def is_valid_folder(parser, dirloc):
         return path
 
 
-def is_valid_json_file(parser, fileloc):
+def is_valid_json_file(parser: argparse.ArgumentParser, fileloc: str) -> Path:
     """
     Validate if input argument is an existing JSON file
     """
@@ -46,7 +45,9 @@ def is_valid_json_file(parser, fileloc):
         return path
 
 
-def is_valid_file_location(parser, fileloc):
+def is_valid_file_location(
+        parser: argparse.ArgumentParser, fileloc: str,
+        ) -> Path:
     """
     Validate if an input argument is a valid location for a file
     """
@@ -60,16 +61,16 @@ def is_valid_file_location(parser, fileloc):
         return path
 
 
-def load_mapping(mloc):
+def load_mapping(mloc: Union[Path, str]) -> Any:
     """Loads the mapping json"""
     with open(mloc, 'r', encoding='utf8') as jsonfile:
         return json.load(jsonfile)
 
 
-def create_es_format(entry, root_keys):
+def create_es_format(entry: dict, root_keys: set):
     """
     Converts the entry to the format for ES, according to the mapping.
-    Operates on the input dict
+    Operates on the input dict (In-place edits)
     """
     key_names = list(entry.keys())
     entry['notIndexed_'] = {}
@@ -97,12 +98,14 @@ if __name__ == "__main__":
     aparser.add_argument(
         "--mapping",
         help="Location of the mapping.json (override default location)",
-        type=lambda x: is_valid_json_file(aparser, x)
+        type=lambda x: is_valid_json_file(aparser, x),
+        required=True,
     )
     aparser.add_argument(
         "--log",
-        help="Location of the log (override default location)",
-        type=lambda x: is_valid_file_location(aparser, x)
+        help="Location of the log (By default, stored in current directory)",
+        type=lambda x: is_valid_file_location(aparser, x),
+        default=Path('es_upload.log').absolute(),
     )
 
     # Get arguments
@@ -111,18 +114,6 @@ if __name__ == "__main__":
     es_ip = args.es_host
     mapping_loc = args.mapping
     log_loc = args.log
-
-    if mapping_loc is None:
-        mapping_loc = Path(DEF_MAPPING_LOC)
-        if not mapping_loc.is_file():
-            raise FileNotFoundError('Default Mapping Loc not available!')
-
-    if log_loc is None:
-        log_loc = Path(DEF_LOG_LOC)
-        if not log_loc.parent.is_dir():
-            raise FileNotFoundError(
-                'Directory of default logging loc does not exist!'
-            )
 
     # Setup logging
     logger = logging.getLogger()
@@ -161,12 +152,16 @@ if __name__ == "__main__":
     response.raise_for_status()
 
     # Determine keys that will be indexed:
-    indexed_keys = set([k for k in es_mapping['mappings']['properties']
-                        if not k.endswith('_')])
+    indexed_keys = set([
+        k for k in es_mapping['mappings']['properties'] if not k.endswith('_')
+    ])
     bulk_address = es_address + '/_bulk'
 
     # Get a list of file names
-    processed_fns = [fn for fn in os.listdir(data_folder) if fn.endswith('.jl') or fn.endswith('.jsonl')]
+    processed_fns = [
+        fn for fn in os.listdir(data_folder)
+        if fn.endswith('.jl') or fn.endswith('.jsonl')
+    ]
 
     # Load from json-lines file, and push data to ES, log any fatal errors:
     try:
@@ -195,16 +190,23 @@ if __name__ == "__main__":
                                                  headers=HEADERS)
                         response.raise_for_status()
                         rdata = response.json()
-                        assert len(rdata['items']) == 500, "Not all items were processed!"
+                        assert len(rdata['items']) == 500,\
+                            "Not all items were processed!"
                         for item in rdata['items']:
                             status = item['index']['status']
                             if status == 200:
-                                logger.warning('Duplicate ID: {}'.format(item['index']['_id']))
+                                logger.warning(
+                                    'Duplicate ID: {}'.format(
+                                        item['index']['_id']
+                                    )
+                                )
                             elif status != 201:
                                 logger.warning(
-                                    'The Following item failed to push: {}'.format(
-                                        json.dumps(item, ensure_ascii=False, indent=4)
-                                    ))
+                                    'The Following item failed to push: ' +
+                                    json.dumps(
+                                        item, ensure_ascii=False, indent=4
+                                    )
+                                )
                         if between_count > 10000:
                             print('send {} items'.format(count))
                             between_count = 0
@@ -224,7 +226,9 @@ if __name__ == "__main__":
                 for item in rdata['items']:
                     status = item['index']['status']
                     if status == 200:
-                        logger.warning('Duplicate ID: {}'.format(item['index']['_id']))
+                        logger.warning(
+                            'Duplicate ID: {}'.format(item['index']['_id'])
+                        )
                     elif status != 201:
                         logger.error(
                             'The Following item failed to push: {}'.format(
@@ -252,5 +256,7 @@ if __name__ == "__main__":
         )
     except Exception:
         logger.exception('The following fatal exception occured:')
-        logger.info('Following data was returned last: {}'.format(response.text))
+        logger.info(
+            'Following data was returned last: {}'.format(response.text)
+        )
         raise

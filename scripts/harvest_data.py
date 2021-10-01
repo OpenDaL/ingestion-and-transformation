@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-Script to harvest data using the async harvesters (TESTING ONLY)
+Script to harvest data all data for the sources defined in sources.yaml
 """
 import asyncio
 import logging
@@ -8,12 +8,16 @@ from logging import handlers
 from pathlib import Path
 import re
 import argparse
+from typing import Union
 
 from metadata_ingestion import _loadcfg
 from metadata_ingestion import harvesters
 
 
-def is_valid_folder(parser, dirloc):
+def is_valid_folder(parser: argparse.ArgumentParser, dirloc: str) -> Path:
+    """
+    Checks if the given dirloc points to an existing directory
+    """
     path = Path(dirloc)
     if not path.is_dir():
         parser.error('The directory {} does not exist'.format(dirloc))
@@ -21,7 +25,10 @@ def is_valid_folder(parser, dirloc):
         return path
 
 
-def is_valid_file(parser, fileloc):
+def is_valid_file(parser: argparse.ArgumentParser, fileloc: str) -> Path:
+    """
+    Checks if the given fileloc points to an existing file
+    """
     path = Path(fileloc)
     if not path.is_file():
         parser.error('The file {} does not exist'.format(fileloc))
@@ -29,7 +36,7 @@ def is_valid_file(parser, fileloc):
         return path
 
 
-async def run_harvest_tasks(q):
+async def run_harvest_tasks(q: asyncio.Queue):
     """
     Runs harvesters on a queue
     """
@@ -40,7 +47,9 @@ async def run_harvest_tasks(q):
         q.task_done()
 
 
-async def produce_harvest_tasks(q, output_folder):
+async def produce_harvest_tasks(
+        q: asyncio.Queue, output_folder: Union[Path, str]
+        ):
     """
     Create the harvest tasks, and put them on the queue
     """
@@ -82,7 +91,7 @@ async def main():
     )
     aparser.add_argument(
         "--override-sources",
-        help="Override the package default sources.yaml using this file",
+        help="Override the default sources.yaml using this file",
         dest='sources_loc',
         type=lambda x: is_valid_file(aparser, x)
     )
@@ -95,7 +104,7 @@ async def main():
     if sources_loc:
         _loadcfg.st.SRCS_CFG_LOC = sources_loc
 
-    # Logging
+    # Set a rotating file handler logger
     logger = logging.getLogger()
     logger.setLevel(logging.INFO)
     handler = handlers.RotatingFileHandler(
