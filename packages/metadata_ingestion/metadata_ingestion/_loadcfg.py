@@ -36,20 +36,20 @@ def translators() -> dict:
 
 
 def subject_scheme() -> dict:
-    return dataio.loadjson(Path(INGESTION_CONF_DIR, r'subject_scheme.json'))
+    return dataio.loadyaml(Path(INGESTION_CONF_DIR, r'subject_scheme.yaml'))
 
 
 def file_format_mapping() -> dict:
-    return dataio.loadjson(Path(INGESTION_CONF_DIR, r'ff_mapping.json'))
+    return dataio.loadyaml(Path(INGESTION_CONF_DIR, r'ff_mapping.yaml'))
 
 
 def language_mapping() -> dict:
-    return dataio.loadjson(Path(INGESTION_CONF_DIR, r'lang_mapping.json'))
+    return dataio.loadyaml(Path(INGESTION_CONF_DIR, r'lang_mapping.yaml'))
 
 
 def epsg_codes() -> list[int]:
-    return dataio.loadjson(Path(INGESTION_CONF_DIR, r'epsg_codes.json'))
+    return dataio.loadyaml(Path(INGESTION_CONF_DIR, r'epsg_codes.yaml'))
 
 
 def name_to_epsg() -> dict:
-    return dataio.loadjson(Path(INGESTION_CONF_DIR, r'name2epsg.json'))
+    return dataio.loadyaml(Path(INGESTION_CONF_DIR, r'name2epsg.yaml'))
