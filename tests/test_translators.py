@@ -9,9 +9,9 @@ config_path = Path(
     Path(__file__).absolute().parent,
     'configs'
 )
-from metadata_ingestion import settings
+from metadata_ingestion import settings  # noqa: E402
 settings.INGESTION_CONF_DIR = config_path
-from metadata_ingestion import translators, resource
+from metadata_ingestion import translators, resource  # noqa: E402
 
 
 testdata = load_data('translators.yaml')

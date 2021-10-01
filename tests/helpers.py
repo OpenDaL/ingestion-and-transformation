@@ -5,11 +5,12 @@ Only to be used as module. Functions shared across tests
 
 from pathlib import Path
 import yaml
+from typing import Union, Any
 
 data_dir = Path(Path(__file__).parent, 'data')
 
 
-def load_data(filename):
+def load_data(filename: Union[Path, str]) -> Any:
     """
     Load YAML test data with given filename
     """
@@ -19,24 +20,30 @@ def load_data(filename):
 
 def compare_output(
         actual: dict, reference: dict, all_fields: bool = False,
-        assert_none: bool = True):
+        assert_none: bool = True
+        ):
     """
     Compare actual output of algorithms to a reference output.
 
-    Arguments:
-        actual -- The actual dict/list output
+    Args:
+        actual:
+            The actual dict/list output
+        reference:
+            The desired/reference output
+        all_fields:
+            Optional; If True, an error is generated if the reference does not
+            have all of the fields of the actual. Otherwise, only the fields
+            that are in the reference, are compared to the actual.
+        assert_none:
+            Optional; If True, fields in the reference with a null value
+            should not be in the actual
 
-        reference -- The desired/reference output
-
-        all_fields=False -- If True, an error is generated if
-        the reference does not have all of the fields of the actual. Otherwise,
-        only the fields that are in the reference, are compared to the actual.
-
-        assert_none=True -- If True, fields in the reference with a null value
-        should not be in the actual
+    Raises:
+        AssertionError:
+            In case the reference data does not match the actual data
 
     _Note: For lists it checks the length, whether an entry is included, but
-    not order_
+    not the order_
     """
     difference_message = '\nExpected: {}\n\nActual:{}'.format(
         str(reference), str(actual)
