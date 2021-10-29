@@ -3,7 +3,7 @@ from setuptools import setup, find_packages
 
 setup(
     name="metadata_ingestion",
-    version="1.0.9",
+    version="1.0.10",
     packages=find_packages(),
     install_requires=[
         'requests>=2.18.4',
@@ -16,8 +16,7 @@ setup(
         'aiohttp>=3.5.4',
         'cloudscraper>=1.2.28',
         'fastjsonschema>=2.15.0,<3.0.0'
-        ],
-    zip_safe=False,  # This allows settings.py to be edited after install
+    ],
     author="Tom Brouwer",
     author_email="tombrouwer@outlook.com",
     description="Code to ingestion metadata for the OpenDaL platform",
