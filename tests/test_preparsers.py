@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-Contains the tests for the structurers
+Contains the tests for the pre-parsers
 
 Copyright (C) 2021  Tom Brouwer
 
@@ -25,7 +25,7 @@ testdata = load_data('preparsers.yaml')
 
 def test_all_preparsers_covered():
     """
-    Test if the testdata covers all structurers
+    Test if the testdata covers all preparsers
     """
     all_preparsers = {
         o for o in dir(translators) if o.endswith('Preparser')
@@ -38,7 +38,7 @@ def test_all_preparsers_covered():
 
 def test_preparsers():
     """
-    In/output tests of the structurers
+    In/output tests of the preparsers
     """
     for preparser_name, testcases in testdata.items():
         PreparserClass = getattr(translators, preparser_name)

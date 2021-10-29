@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-Contains the tests for the structurers
+Contains the tests for the translators
 
 Copyright (C) 2021  Tom Brouwer
 
@@ -34,7 +34,7 @@ testdata = load_data('translators.yaml')
 
 def test_all_translators_covered():
     """
-    Test if the testdata covers all structurers
+    Test if the testdata covers all translators
     """
     all_translators = {
         o for o in dir(translators) if o.endswith('Translator')
@@ -48,7 +48,7 @@ def test_all_translators_covered():
 
 def test_translators():
     """
-    In/output tests of the structurers
+    In/output tests of the translators
     """
     for translator_name, testcases in testdata.items():
         TranslatorClass = getattr(translators, translator_name)

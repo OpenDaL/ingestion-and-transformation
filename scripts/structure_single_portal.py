@@ -1,7 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-Script that structures, translates and post_processes harvested data stored
-in json-lines files
+Script that structures harvested data stored in json-lines files
 
 Copyright (C) 2021  Tom Brouwer
 
