@@ -13,6 +13,10 @@ delays: [10, 30, 120, 600]
 # Use this key to represent the internal data of an xml node under
 rep_textkey: _content # this will replace #text in xml data
 
-# Data Translation
+# Format used for date fields in the translated data
 date_format: '%Y-%m-%d'
-now_add_days: 14 # Number of days added to date that is 'now'
+
+# Number of days added to date that is 'now'
+# Set this depending on the interval at which you're going to update
+# the database, so the 'now' data is always highger then the current date
+now_add_days: 14
