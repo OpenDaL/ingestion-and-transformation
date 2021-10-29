@@ -3,7 +3,7 @@ from setuptools import setup, find_packages
 
 setup(
     name="metadata_ingestion",
-    version="0.5.8",
+    version="1.0.8",
     packages=find_packages(),
     install_requires=[
         'requests>=2.18.4',
@@ -20,6 +20,6 @@ setup(
     zip_safe=False,  # This allows settings.py to be edited after install
     author="Tom Brouwer",
     author_email="tombrouwer@outlook.com",
-    description="Code to ingestion metadata for the DataClopedia platform",
-    license="TBD",
+    description="Code to ingestion metadata for the OpenDaL platform",
+    license="GPL-3.0-or-later",
 )
