@@ -1,0 +1,7 @@
+type: object
+description:
+  Mapping from lowercase language strings into two letter language codes
+additionalProperties:
+  type: string
+  minLength: 2
+  maxLength: 2

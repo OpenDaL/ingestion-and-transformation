@@ -1,0 +1,7 @@
+type: object
+description:
+  Mapping from format value strings (lowercase, e.g. mime-types) to
+  standardized formats in the OpenDaL format
+additionalProperties:
+  type: string
+  description: The value to which to translate the given format

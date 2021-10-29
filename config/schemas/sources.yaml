@@ -1,0 +1,398 @@
+$schema: http://json-schema.org/draft-07/schema#
+type: array
+title: The list of OpenDaL Sources
+items:
+  type: object
+  description: A single source
+  additionalProperties: false
+  required:
+  - structurer
+  - harvester_kwargs
+  - structurer_kwargs
+  - class
+  - homepage
+  - id
+  - name
+  - language
+  - count
+  - harvester
+  properties:
+    structurer:
+      type: string
+      description: Class name of structurer used for structuring
+      enum:
+      - ArcGISOpenDataStructurer
+      - BlackLightStructurer
+      - CKANStructurer
+      - CSWStructurer
+      - DataGovINStructurer
+      - DataJSONStructurer
+      - DataOneStructurer
+      - DataverseSchemaOrgStructurer
+      - DataverseStructurer
+      - DcatXMLStructurer
+      - EUDPStructurer
+      - ElasticSearchStructurer
+      - GMDStructurer
+      - GeonetworkStructurer
+      - GeonodeStructurer
+      - GeoplatformStructurer
+      - InvenioStructurer
+      - JunarStructurer
+      - KnoemaDCATStructurer
+      - MagdaStructurer
+      - NCEIStructurer
+      - OAIDCStructurer
+      - OAIDatacitePayloadStructurer
+      - OAIDataciteResourceStructurer
+      - OAIISO19139Structurer
+      - OpenDataSoftStructurer
+      - RIFCSStructurer
+      - ScienceBaseStructurer
+      - SimpleStructurer
+      - SocrataStructurer
+      - UdataStructurer
+    harvester_kwargs:
+      type: object
+      description: Harvester Keyword Arguments
+    structurer_kwargs:
+      type: object
+      description: 'Structurer function keyword arguments (note: Different structures
+        may use different arguments for the same property, and not all structuring
+        functions implement the below properties)'
+    class:
+      type: string
+      description: The type of portal
+      enum:
+      - community
+      - research
+      - mixed
+      - government
+    homepage:
+      type: string
+      description: Home page for the portal
+      format: uri
+    id:
+      type: string
+      description: Unique identifier for the source
+      pattern: ^[_a-z0-9]+$
+    name:
+      type: string
+      description: (English) name of the portal
+    language:
+      type: string
+      description: Language of the dataset descriptions in the portal
+      enum:
+      - aa
+      - ab
+      - ae
+      - af
+      - ak
+      - am
+      - an
+      - ar
+      - as
+      - av
+      - ay
+      - az
+      - ba
+      - be
+      - bg
+      - bh
+      - bi
+      - bm
+      - bn
+      - bo
+      - br
+      - bs
+      - ca
+      - ce
+      - ch
+      - co
+      - cr
+      - cs
+      - cu
+      - cv
+      - cy
+      - da
+      - de
+      - dv
+      - dz
+      - ee
+      - el
+      - en
+      - eo
+      - es
+      - et
+      - eu
+      - fa
+      - ff
+      - fi
+      - fj
+      - fo
+      - fr
+      - fy
+      - ga
+      - gd
+      - gl
+      - gn
+      - gu
+      - gv
+      - ha
+      - he
+      - hi
+      - ho
+      - hr
+      - ht
+      - hu
+      - hy
+      - hz
+      - ia
+      - id
+      - ie
+      - ig
+      - ii
+      - ik
+      - io
+      - is
+      - it
+      - iu
+      - ja
+      - jv
+      - ka
+      - kg
+      - ki
+      - kj
+      - kk
+      - kl
+      - km
+      - kn
+      - ko
+      - kr
+      - ks
+      - ku
+      - kv
+      - kw
+      - ky
+      - la
+      - lb
+      - lg
+      - li
+      - ln
+      - lo
+      - lt
+      - lu
+      - lv
+      - mg
+      - mh
+      - mi
+      - mk
+      - ml
+      - mn
+      - mr
+      - ms
+      - mt
+      - my
+      - na
+      - nb
+      - nd
+      - ne
+      - ng
+      - nl
+      - nn
+      - 'no'
+      - nr
+      - nv
+      - ny
+      - oc
+      - oj
+      - om
+      - or
+      - os
+      - pa
+      - pi
+      - pl
+      - ps
+      - pt
+      - qu
+      - rm
+      - rn
+      - ro
+      - ru
+      - rw
+      - sa
+      - sc
+      - sd
+      - se
+      - sg
+      - si
+      - sk
+      - sl
+      - sm
+      - sn
+      - so
+      - sq
+      - sr
+      - ss
+      - st
+      - su
+      - sv
+      - sw
+      - ta
+      - te
+      - tg
+      - th
+      - ti
+      - tk
+      - tl
+      - tn
+      - to
+      - tr
+      - ts
+      - tt
+      - tw
+      - ty
+      - ug
+      - uk
+      - ur
+      - uz
+      - ve
+      - vi
+      - vo
+      - wa
+      - wo
+      - xh
+      - yi
+      - yo
+      - za
+      - zh
+      - mult
+      - zu
+    count:
+      type: integer
+      description: Number of resource descriptions that are downloaded (before filtering)
+      exclusiveMinimum: 0
+    harvester:
+      type: string
+      description: The harvester to use (should be in metadata_ingestion.aio_harvest)
+      enum:
+      - KnoemaDCATHarvester
+      - OAIPMHHarvester
+      - DataONEHarvester
+      - DataverseHarvester
+      - SocrataDiscoveryHarvester
+      - CSW2Harvester
+      - OpenDataSoftHarvester
+      - DKANHarvester
+      - CKAN3Harvester
+      - GeonodeHarvester
+      - ArcGISOpenDataHarvester
+      - SingleJSONHarvester
+      - BlacklightHarvester
+      - DataGovINHarvester
+      - ScienceBaseHarvester
+      - GeoPlatformHarvester
+      - ElasticSearchScrollHarvester
+      - InvenioAPIHarvester
+      - MagdaAPIHarvester
+      - GeonetworkAPIHarvester
+      - EUDPHarvester
+      - ElasticSearchHarvester
+      - JunarAPIHarvester
+      - UdataHarvester
+      - SingleXMLHarvester
+      - JSONIndexHarvester
+    includes:
+      type: array
+      description: A list of portal domains that are included in this portal
+      items:
+        type: string
+    annotations:
+      type: object
+      descriptions: Additional information about the portal/API
+      properties:
+        supports_incremental:
+          type: boolean
+          description: Whether the endpoint supports incremental harvesting
+        comments:
+          type: string
+          description: Additional comments about the portal
+        type:
+          type: string
+          description: The type of portal (if not clear, e.g. for OAI-PMH endpoints)
+          enum:
+          - Eprints
+          - Invenio
+          - Dspace
+          - Dataverse
+          - ICPSR
+          - Koordinates
+          - Tind
+          - BEPress
+          - Geonetwork
+          - Geoportal
+        issues:
+          type: string
+          description: Describes whether there any issues with the portal
+    default_metadata:
+      type: object
+      description: Contains metadata that's added to an entry by default, if nothing
+        is derived from the portal data for that key
+      additionalProperties: false
+      properties:
+        type:
+          type: string
+          enum:
+          - Dataset
+          - Dataset:Geographic
+          - Dataset:Tabular
+          - Dataset:Image
+          - Dataset:Audio
+          - Dataset:Video
+          - Dataset:Timeseries
+          - Dataset:Model-output
+          - Dataset:Measurements
+          - Dataset:Observations
+          - Dataset:Forecast
+          - Document
+          - Document:Report
+          - Software
+          - Software:Model
+          - Service
+          - Service:API
+        location:
+          type: object
+          additionalProperties: false
+          properties:
+            name:
+              type: string
+            geometry:
+              type: object
+              required:
+              - type
+              - coordinates
+              anyOf:
+              - properties:
+                  type:
+                    type: string
+                    const: envelope
+                  coordinates:
+                    type: array
+                    minItems: 2
+                    maxItems: 2
+                    items:
+                      type: array
+                      minItems: 2
+                      maxItems: 2
+                      items:
+                        type: number
+              - properties:
+                  type:
+                    type: string
+                    const: Point
+                  coordinates:
+                    type: array
+                    minItems: 2
+                    maxItems: 2
+                    items:
+                      type: number

@@ -1,0 +1,68 @@
+type: object
+description:
+  Contains the complete subject schema, including the parent/child relations,
+  or any interrelations between subjects. Also contains the 'matches' for each
+  language, which are used to translate specific phrases to a standardized
+  subject. Each key in this object is a subject id, and each value contains the
+  subject properties
+additionalProperties: false
+patternProperties:
+  ^[a-z_]+$:
+    type: object
+    description: The properties of a single subject
+    additionalProperties: false
+    required:
+      - name
+      - relations
+      - parents
+      - recommendations
+      - synonyms
+      - matches
+      - matches_en
+    properties:
+      name:
+        type: string
+        description: Subject Display Name
+      parents:
+        type: array
+        items:
+          type: string
+        description: Id's of the parents of this subject
+      relations:
+        type: array
+        items:
+          type: string
+        description:
+          Id's of subjects that are directly related to this one
+      synonyms:
+        type: array
+        items:
+          type: string
+        description:
+          Synonyms that should be matched to this subject
+      matches:
+        type: array
+        items:
+          type: string
+        description:
+          Any phrases that should match this subject, in addition to the
+          name and the synonyms
+      comments:
+        type: string
+        description: Any comments about this subject
+      recommendations:
+        type: array
+        items:
+          type: string
+        description:
+          The id's of any subjects closesly related to this one, to be
+          recommended to front-end users
+    patternProperties:
+      ^matches_[a-z]{2}$:
+        type: array
+        items:
+          type: string
+        description:
+          The list of (lowercase) matches for a specific language. Typically
+          this consists of the combination of the name, synonyms and matches,
+          standardized  and translated into the target language.

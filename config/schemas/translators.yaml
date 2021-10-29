@@ -1,0 +1,78 @@
+type: object
+description: The configuration for the metadata_ingestion.translators module
+additionalProperties: false
+properties:
+  general:
+    type: object
+    description: Contains general configuration variables
+    additionalProperties: false
+    required:
+      - none_strings
+      - ignore_startswith
+      - ignore_contains
+      - now_equivalents
+      - language_keys
+      - language_value_keys
+    properties:
+      none_strings:
+        type: array
+        description:
+          Contains (lowercase) strings that resemble 'no information', e.g.
+          'not available'. If these are found in e.g. descriptions, they are
+          not considered.
+        items:
+          type: string
+      ignore_startswith:
+        type: array
+        description:
+          If field value starts with any of these (lowercase) strings, it is
+          ignored (e.g. 'other', 'various').
+        items:
+          type: string
+      ignore_contains:
+        type: array
+        description:
+          Ignore field values that contain these (lowercase) strings, e.g.
+          'not specified'
+        items:
+          type: string
+      now_equivalents:
+        type: array
+        description:
+          If these values (lowercase) are found in fields with date data, it is
+          considered to represent 'now'
+        items:
+          type: string
+      language_keys:
+        type: array
+        description:
+          These keys are used to determine the language of a field
+        items:
+          type: string
+      language_value_keys:
+        type: array
+        description:
+          If the language information is a dictionary, search for language
+          values under these keys
+        items:
+          type: string
+  preparsers:
+    type: object
+    description:
+      Keyword arguments used when invoking each of the 'Preparsers' in
+      the translators.py module
+    patternProperties:
+      ^[a-zA-Z]+Preparser$:
+        type: object
+        description: The keyword arguments for a preparser
+    additionalProperties: false
+  translators:
+    type: object
+    description:
+      Keyword arguments used when invoking each of the 'Translators' in
+      the translators.py module
+    patternProperties:
+      ^[a-zA-Z]+Translator$:
+        type: object
+        description: The keyword arguments for a translator
+    additionalProperties: false

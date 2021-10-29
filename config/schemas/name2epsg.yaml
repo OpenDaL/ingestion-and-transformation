@@ -1,0 +1,5 @@
+type: object
+description: Mapping from string coordinate system identifiers to EPSG codes
+additionalProperties:
+  type: number
+  description: EPSG code

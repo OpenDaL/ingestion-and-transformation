@@ -1,0 +1,18 @@
+type: object
+description:
+  Use this to filter entries in case specfic values are found in a field.
+  For each field that needs to be filtered, this contains a list of values
+  that, if matched in the entry, should cause an entry to be ignored.
+additionalProperties: false
+patternProperties:
+  ^[a-zA-Z]+$:
+    anyOf:
+      - type: array
+        description: Array of the values that should be ignored for this key
+      - type: object
+        description:
+          If a subkey is to be filtered (e.g. publisher.name), then define an
+          object, and under the subkey, define the array of values
+        additionalProperties:
+          type: array
+          description: Array of the values that should be ignored for this key

@@ -1,0 +1,5 @@
+type: array
+items:
+  type: number
+description:
+  A list of all valid EPSG coordinatesystem codes
