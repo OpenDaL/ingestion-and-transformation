@@ -2737,7 +2737,7 @@ class LocationTranslator(SchemaValidationMixin, FieldTranslator):
 
     def _process_geojson(self, dict_) -> list[dict]:
         try:
-            shape = geometry.asShape(dict_)
+            shape = geometry.shape(dict_)
             if not shape.is_empty:
                 return self._locations_from_shape(shape)
             else:
