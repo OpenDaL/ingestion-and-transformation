@@ -30,11 +30,15 @@ import cloudscraper
 import copy
 import time
 from typing import Union, Any, Iterator
+import os
 
-import aiohttp
 import xmltodict
 
 from . import settings, dataio, exceptions, _common
+
+# To fix occasional http 400 errors: https://github.com/aio-libs/aiohttp/issues/5443
+os.environ['AIOHTTP_NO_EXTENSIONS'] = '1'
+import aiohttp  # noqa:E402
 
 DEFAULT_TIMEOUT = {
     "total": 300,
