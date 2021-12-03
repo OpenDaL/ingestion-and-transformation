@@ -112,7 +112,7 @@ if __name__ == "__main__":
     )
     aparser.add_argument(
         "--mapping",
-        help="Location of the mapping.json (override default location)",
+        help="Location of the mapping.json",
         type=lambda x: is_valid_json_file(aparser, x),
         required=True,
     )
@@ -222,7 +222,7 @@ if __name__ == "__main__":
                                         item, ensure_ascii=False, indent=4
                                     )
                                 )
-                        if between_count > 10000:
+                        if between_count >= 10000:
                             print('send {} items'.format(count))
                             between_count = 0
                 logger.info('Uploading {} entries of file {}'.format(
