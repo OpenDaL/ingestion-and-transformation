@@ -32,7 +32,7 @@ If you have Python 3.9 in your path, you can run [install_env.sh](install_env.sh
 to install the Python environment to the '.env' directory inside this
 repository.
 
-To activate the environment, you can use `source activate_env.sh`.
+To activate the environment, use the command `source activate_env.sh`.
 
 To be able to harvest and translate data, you will need to
 1. Define a $CONFIG_DIR variable, holding the directory that contains the
@@ -71,7 +71,8 @@ which contains samples of all these files, except sources.yaml.
 ### 2.3 Common Tasks
 The paragraphs below describe how to perform common tasks using the scripts in
 this repository. Each script has a `--help` command line parameter to find out
-all possible options.
+all possible options. Activate the environment, as described in section 2.2,
+before running the scripts.
 
 #### 2.3.1 Harvesting Data
 The following scripts are used to harvest data:
